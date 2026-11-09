@@ -23,9 +23,10 @@ interface Props {
   initial?: Transaction;
   onDone: () => void;
   presetCardId?: string;
+  initialCardKind?: 'card_purchase' | 'card_charge';
 }
 
-export function TransactionForm({ mode: initialMode, initial, onDone, presetCardId }: Props) {
+export function TransactionForm({ mode: initialMode, initial, onDone, presetCardId, initialCardKind }: Props) {
   const { data, update, personName } = useStore();
   const editing = !!initial;
   const mode = initial ? (initial.kind === 'expense' && initial.status === 'pending' ? 'bill' : kindToMode[initial.kind]) : initialMode;
@@ -48,7 +49,8 @@ export function TransactionForm({ mode: initialMode, initial, onDone, presetCard
   const [accountId, setAccountId] = useState(initial?.accountId ?? defaultAccount);
   const [toAccountId, setToAccountId] = useState(initial?.toAccountId ?? bankAccounts.find((a) => a.id !== defaultAccount)?.id ?? '');
   const [cardId, setCardId] = useState(initial?.cardId ?? defaultCard);
-  const [cardKind, setCardKind] = useState<'card_purchase' | 'card_charge'>(initial?.kind === 'card_charge' ? 'card_charge' : 'card_purchase');
+  // presetCardId (from a card page) wins over the first card
+  const [cardKind, setCardKind] = useState<'card_purchase' | 'card_charge'>(initial?.kind === 'card_charge' ? 'card_charge' : (initialCardKind ?? 'card_purchase'));
   const [instalments, setInstalments] = useState('1');
   const [paymentMethod, setPaymentMethod] = useState(initial?.paymentMethod ?? '');
   const [incomeSource, setIncomeSource] = useState(initial?.incomeSource ?? 'Salary');

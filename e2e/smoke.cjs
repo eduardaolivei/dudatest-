@@ -86,6 +86,32 @@ const money = async (page, label) => (await page.locator('.card', { hasText: lab
     await page.getByRole('button', { name: 'Duplicate Coles' }).first().click();
     check('duplicate creates a copy', (await page.locator('li', { hasText: 'Coles' }).count()) === before + 1);
 
+    // 8. Credit card: purchase + payment must count spending ONCE
+    await page.goto(URL + '#/cards');
+    await page.getByRole('button', { name: '+ Add card' }).click();
+    await page.getByPlaceholder('e.g. Low Rate Visa').fill('Test Visa');
+    await page.getByLabel('Credit limit').fill('5000');
+    await page.getByRole('button', { name: 'Save' }).click();
+    await page.goto(URL);
+    const spentBefore = await money(page, 'Expenses this month');
+    await page.goto(URL + '#/cards');
+    await page.getByRole('button', { name: '+ Purchase' }).click();
+    await page.getByLabel('Amount').fill('300');
+    await page.getByPlaceholder('e.g. Woolworths').fill('Shoes');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    check('card debt shows purchase', (await page.getByText('$300.00').count()) > 0);
+    await page.getByRole('button', { name: 'Pay', exact: true }).click();
+    await page.getByRole('button', { name: /Full balance/ }).click();
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.goto(URL + '#/accounts');
+    check('card payment reduces bank balance', (await page.getByText('$2,489.00').count()) > 0);
+    await page.goto(URL);
+    await page.waitForTimeout(300);
+    const spentAfter = await money(page, 'Expenses this month');
+    const toC = (s) => Math.round(parseFloat(s.replace(/[^0-9.]/g, '')) * 100);
+    check('purchase + payment counted once in spending', toC(spentAfter) - toC(spentBefore) === 30000, `${spentBefore} -> ${spentAfter}`);
+    check('card debt back to zero', (await money(page, 'Credit card debt')) === '$0.00');
+
     if (process.env.EXTRA) await require(process.env.EXTRA)(page, URL, check, money);
   } catch (e) {
     console.error(e);

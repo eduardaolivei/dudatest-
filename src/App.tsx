@@ -7,6 +7,7 @@ import Accounts from './pages/Accounts';
 import Transactions from './pages/Transactions';
 import Bills from './pages/Bills';
 import Recurring from './pages/Recurring';
+import Cards from './pages/Cards';
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/bills" element={<Bills />} />
+            <Route path="/cards" element={<Cards />} />
             <Route path="/recurring" element={<Recurring />} />
             <Route path="/accounts" element={<Accounts />} />
             <Route path="/more" element={<More />} />

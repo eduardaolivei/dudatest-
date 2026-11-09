@@ -10,7 +10,7 @@ export function Money({ cents, className = '', signed = false, short = false }: 
   return <span className={`tabular-nums ${className}`}>{prefix}{s}</span>;
 }
 
-export function Stat({ label, value, hint, tone = 'default', icon }: { label: string; value: Cents; hint?: ReactNode; tone?: 'default' | 'good' | 'bad' | 'warn'; icon?: string }) {
+export function Stat({ label, value, hint, tone = 'default', icon, display }: { label: string; value: Cents; hint?: ReactNode; tone?: 'default' | 'good' | 'bad' | 'warn'; icon?: string; display?: string }) {
   const color = { default: '', good: 'text-emerald-600 dark:text-emerald-400', bad: 'text-red-600 dark:text-red-400', warn: 'text-amber-600 dark:text-amber-400' }[tone];
   return (
     <div className="card flex flex-col gap-1">
@@ -18,7 +18,7 @@ export function Stat({ label, value, hint, tone = 'default', icon }: { label: st
         {icon && <Icon name={icon} className="h-3.5 w-3.5" />}
         {label}
       </div>
-      <Money cents={value} className={`text-xl font-semibold sm:text-2xl ${color}`} />
+      {display !== undefined ? <span className={`text-xl font-semibold tabular-nums sm:text-2xl ${color}`}>{display}</span> : <Money cents={value} className={`text-xl font-semibold sm:text-2xl ${color}`} />}
       {hint && <div className="text-xs muted">{hint}</div>}
     </div>
   );
