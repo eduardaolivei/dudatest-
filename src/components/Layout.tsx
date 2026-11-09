@@ -91,7 +91,7 @@ export function Layout({ children }: { children: ReactNode }) {
               </button>
             </div>
             <select aria-label="Whose finances" className="input w-auto py-1.5 text-sm" value={person} onChange={(e) => setPerson(e.target.value as PersonFilter)}>
-              {personOptions.map((o) => <option key={o.value} value={o.value}>{o.value === 'all' ? 'Everyone' : o.value === 'joint' ? 'Our Joint Finances' : `${o.label}'s Finances`}</option>)}
+              {personOptions.map((o) => <option key={o.value} value={o.value}>{o.value === 'all' ? 'Everyone' : o.value === 'joint' ? 'Our Joint Finances' : o.value === 'me' ? 'My Finances' : `${o.label}'s Finances`}</option>)}
             </select>
             {!isCurrentMonth && <button className="text-xs font-medium text-brand-600" onClick={() => setMonth(today())}>Today</button>}
             <div className="flex-1" />

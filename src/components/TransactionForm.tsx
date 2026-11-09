@@ -167,7 +167,7 @@ export function TransactionForm({ mode: initialMode, initial, onDone, presetCard
         kind: isCard && st === 'paid' ? 'card_purchase' : 'expense',
         description: description.trim(),
         date: mode === 'bill' && st === 'pending' ? dueDate : date,
-        dueDate: mode === 'bill' ? dueDate : undefined,
+        dueDate: mode === 'bill' ? dueDate : initial?.dueDate,
         category,
         subcategory: subcategory || undefined,
         status: st,
