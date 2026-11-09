@@ -26,7 +26,7 @@ export function buildDemo(ref: ISODate): Omit<AppData, 'settings' | 'version'> {
   };
 
   const salaryMe = { id: uid(), kind: 'income' as const, description: 'My Salary (demo)', amount: 210000, frequency: 'fortnightly' as const, startDate: addDays(prev(3, 1), 3), category: 'Income', person: 'me' as const, accountId: mine.id, incomeSource: 'Salary', demo: true };
-  const salaryPat = { id: uid(), kind: 'income' as const, description: "Patrick's Salary (demo)", amount: 165000, frequency: 'weekly' as const, startDate: prev(3, 2), category: 'Income', person: 'patrick' as const, accountId: pats.id, incomeSource: 'Salary', demo: true };
+  const salaryPat = { id: uid(), kind: 'income' as const, description: "Patrick's Salary (demo)", amount: 98000, frequency: 'weekly' as const, startDate: prev(3, 2), category: 'Income', person: 'patrick' as const, accountId: pats.id, incomeSource: 'Salary', demo: true };
   const rent = { id: uid(), kind: 'expense' as const, description: 'Rent (demo)', amount: 260000, frequency: 'monthly' as const, startDate: prev(3, 1), category: 'Housing', subcategory: 'Rent', person: 'joint' as const, accountId: everyday.id, paymentMethod: 'Bank transfer', demo: true };
   const internet = { id: uid(), kind: 'expense' as const, description: 'Internet (demo)', amount: 7900, frequency: 'monthly' as const, startDate: prev(3, 18), category: 'Housing', subcategory: 'Internet', person: 'joint' as const, accountId: everyday.id, paymentMethod: 'Direct debit', demo: true };
   const streaming = { id: uid(), kind: 'expense' as const, description: 'Streaming (demo)', amount: 1899, frequency: 'monthly' as const, startDate: prev(3, 12), category: 'Financial', subcategory: 'Subscriptions', person: 'joint' as const, cardId: visa.id, paymentMethod: 'Credit card', demo: true };
@@ -60,6 +60,8 @@ export function buildDemo(ref: ISODate): Omit<AppData, 'settings' | 'version'> {
       t({ kind: 'income', amount: rule.amount, description: rule.description, date: d, category: 'Income', person: rule.person, accountId: rule.accountId, incomeSource: 'Salary', recurringId: rule.id, occurrence: d });
     }
   }
+  // Car insurance (quarterly) paid last time
+  t({ kind: 'expense', amount: 42000, description: 'Car Insurance (demo)', date: carIns.startDate, dueDate: carIns.startDate, category: 'Transportation', subcategory: 'Car Insurance', accountId: everyday.id, recurringId: carIns.id, occurrence: carIns.startDate, paymentMethod: 'Direct debit' });
   // An upcoming one-off bill and an overdue one
   t({ kind: 'expense', amount: 18900, status: 'pending', description: 'Electricity (demo)', date: addDays(ref, 5), dueDate: addDays(ref, 5), category: 'Housing', subcategory: 'Electricity', accountId: everyday.id, paymentMethod: 'BPAY' });
   t({ kind: 'expense', amount: 4500, status: 'pending', description: 'Gas (demo)', date: addDays(ref, -2), dueDate: addDays(ref, -2), category: 'Housing', subcategory: 'Gas', accountId: everyday.id, paymentMethod: 'BPAY' });

@@ -12,14 +12,15 @@ export const INCOME_SOURCES = ['Salary', 'Cleaning Business', 'Government', 'Ref
 
 export const PAYMENT_METHODS = ['Debit card', 'Bank transfer', 'BPAY', 'Direct debit', 'Cash', 'Credit card'];
 
+// Fixed category -> palette slot (colour follows the entity, never its rank).
 export const CATEGORY_COLORS: Record<string, string> = {
-  Housing: '#4f6bed',
-  Education: '#8b5cf6',
-  Transportation: '#0ea5e9',
-  Groceries: '#10b981',
-  Personal: '#f59e0b',
-  Financial: '#ef4444',
-  Other: '#64748b',
+  Housing: 'var(--s1)',
+  Education: 'var(--s2)',
+  Transportation: 'var(--s3)',
+  Groceries: 'var(--s4)',
+  Personal: 'var(--s5)',
+  Financial: 'var(--s6)',
+  Other: 'var(--s7)',
 };
 
 export const categoryNames = Object.keys(EXPENSE_CATEGORIES);
