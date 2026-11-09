@@ -12,6 +12,8 @@ import Goals from './pages/Goals';
 import Budgets from './pages/Budgets';
 import Planner from './pages/Planner';
 import Week from './pages/Week';
+import Reports from './pages/Reports';
+import Assistant from './pages/Assistant';
 
 export default function App() {
   return (
@@ -27,6 +29,8 @@ export default function App() {
             <Route path="/budgets" element={<Budgets />} />
             <Route path="/planner" element={<Planner />} />
             <Route path="/week" element={<Week />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/assistant" element={<Assistant />} />
             <Route path="/recurring" element={<Recurring />} />
             <Route path="/accounts" element={<Accounts />} />
             <Route path="/more" element={<More />} />
