@@ -87,28 +87,32 @@ function BillList({ bills, onSettle, onSkip }: { bills: Bill[]; onSettle: (b: Bi
   return (
     <ul className="divide-y divide-slate-100 dark:divide-slate-800">
       {bills.map((b) => (
-        <li key={b.key} className="flex flex-wrap items-center gap-2 py-2.5">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <span className="truncate font-medium">{b.description}</span>
-              {b.source === 'recurring' && <Icon name="repeat" className="h-3.5 w-3.5 text-slate-400" />}
+        <li key={b.key} className="py-2.5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="truncate font-medium">{b.description}</span>
+                {b.source === 'recurring' && <Icon name="repeat" className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
+              </div>
+              <div className="text-xs muted">
+                {formatDate(b.dueDate)} ·{' '}
+                <span className={b.status === 'overdue' ? 'font-medium text-red-600' : ''}>
+                  {b.daysLeft === 0 ? 'due today' : b.daysLeft > 0 ? `${b.daysLeft} day${b.daysLeft === 1 ? '' : 's'} left` : `${-b.daysLeft} day${b.daysLeft === -1 ? '' : 's'} overdue`}
+                </span>
+                {b.minimumPayment !== undefined && <> · min <Money cents={b.minimumPayment} /></>}
+              </div>
             </div>
-            <div className="flex flex-wrap items-center gap-1 text-xs muted">
-              <span>{formatDate(b.dueDate)}</span>·
-              <span className={b.status === 'overdue' ? 'font-medium text-red-600' : ''}>
-                {b.daysLeft === 0 ? 'due today' : b.daysLeft > 0 ? `${b.daysLeft} day${b.daysLeft === 1 ? '' : 's'} left` : `${-b.daysLeft} day${b.daysLeft === -1 ? '' : 's'} overdue`}
-              </span>
-              {b.onCard && <Badge>charged to card</Badge>}
-              {b.minimumPayment !== undefined && <span>· min <Money cents={b.minimumPayment} /></span>}
-            </div>
+            <Money cents={b.amount} className="font-semibold" />
           </div>
-          <StatusBadge status={b.status} />
-          <Money cents={b.amount} className="w-24 text-right font-semibold" />
-          <div className="flex gap-1">
-            <button className="btn-secondary px-2.5 py-1.5 text-xs" onClick={() => onSettle(b)}>
-              <Icon name="check" className="h-3.5 w-3.5" />{b.source === 'card' ? 'Pay' : 'Paid'}
-            </button>
-            {b.source === 'recurring' && onSkip && <button className="btn-ghost px-2 py-1.5 text-xs" onClick={() => onSkip(b)} title="Skip this occurrence">Skip</button>}
+          <div className="mt-1.5 flex items-center gap-2">
+            <StatusBadge status={b.status} />
+            {b.onCard && <Badge>charged to card</Badge>}
+            <div className="ml-auto flex gap-1">
+              {b.source === 'recurring' && onSkip && <button className="btn-ghost px-2 py-1 text-xs" onClick={() => onSkip(b)} title="Skip this occurrence">Skip</button>}
+              <button className="btn-secondary px-2.5 py-1 text-xs" onClick={() => onSettle(b)}>
+                <Icon name="check" className="h-3.5 w-3.5" />{b.source === 'card' ? 'Pay' : 'Paid'}
+              </button>
+            </div>
           </div>
         </li>
       ))}
