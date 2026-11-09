@@ -52,7 +52,7 @@ export function TransactionForm({ mode: initialMode, initial, onDone, presetCard
   const [instalments, setInstalments] = useState('1');
   const [paymentMethod, setPaymentMethod] = useState(initial?.paymentMethod ?? '');
   const [incomeSource, setIncomeSource] = useState(initial?.incomeSource ?? 'Salary');
-  const [status, setStatus] = useState<'paid' | 'pending'>(initial?.status ?? 'paid');
+  const [status, setStatus] = useState<'paid' | 'pending'>(initial?.status ?? (initialMode === 'bill' ? 'pending' : 'paid'));
   const [frequency, setFrequency] = useState<Frequency>('one-time');
   const [alreadyReceived, setAlreadyReceived] = useState(true);
   const [notes, setNotes] = useState(initial?.notes ?? '');
