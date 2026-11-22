@@ -1,0 +1,50 @@
+import { describe, expect, it } from 'vitest';
+import { cycleRange } from './dates';
+import { budgetPeriod, budgetStatus, convertBudgets, effectiveCycle } from './finance';
+import { emptyData } from '../store/storage';
+import { newTx } from '../store/actions';
+
+describe('budget cycles', () => {
+  it('weekly cycle starts on payday (Thursday)', () => {
+    // 20/11/2026 is a Friday payday anchor; ref Sun 22/11
+    expect(cycleRange('weekly', '2026-11-19', '2026-11-22')).toEqual({ start: '2026-11-19', end: '2026-11-25' });
+    expect(cycleRange('weekly', '2026-11-19', '2026-11-26')).toEqual({ start: '2026-11-26', end: '2026-12-02' });
+  });
+  it('works for dates before the anchor', () => {
+    expect(cycleRange('weekly', '2026-11-26', '2026-11-22')).toEqual({ start: '2026-11-19', end: '2026-11-25' });
+    expect(cycleRange('fortnightly', '2026-12-03', '2026-11-22')).toEqual({ start: '2026-11-19', end: '2026-12-02' });
+  });
+  it('monthly cycle on the 15th, and clamps short months', () => {
+    expect(cycleRange('monthly', '2026-01-15', '2026-11-22')).toEqual({ start: '2026-11-15', end: '2026-12-14' });
+    expect(cycleRange('monthly', '2026-01-15', '2026-11-10')).toEqual({ start: '2026-10-15', end: '2026-11-14' });
+    expect(cycleRange('monthly', '2026-01-31', '2027-02-28')).toEqual({ start: '2027-02-28', end: '2027-03-30' });
+  });
+  it('period shows days left until payday', () => {
+    const d = emptyData();
+    d.settings.budgetCycle = { frequency: 'weekly', anchor: '2026-11-19' };
+    const p = budgetPeriod(d, '2026-11-22');
+    expect(p.dayNumber).toBe(4);
+    expect(p.daysLeft).toBe(4);
+    expect(p.nextReset).toBe('2026-11-26');
+    expect(budgetPeriod(d, '2026-11-22', -1).start).toBe('2026-11-12');
+  });
+  it('follows a recurring salary', () => {
+    const d = emptyData();
+    d.recurring.push({ id: 's', kind: 'income', description: 'Salary', amount: 1, frequency: 'fortnightly', startDate: '2026-11-05', category: 'Income', person: 'me' });
+    d.settings.budgetCycle = { frequency: 'monthly', anchor: '2026-01-01', incomeRuleId: 's' };
+    expect(effectiveCycle(d).frequency).toBe('fortnightly');
+    expect(budgetPeriod(d, '2026-11-22')).toMatchObject({ start: '2026-11-19', end: '2026-12-02' });
+  });
+  it('only counts spending inside the cycle', () => {
+    const d = emptyData();
+    d.settings.budgetCycle = { frequency: 'weekly', anchor: '2026-11-19' };
+    d.settings.budgets = { Groceries: 20000 };
+    d.transactions.push(newTx({ kind: 'expense', amount: 5000, description: 'old', date: '2026-11-18', category: 'Groceries', person: 'joint' }));
+    d.transactions.push(newTx({ kind: 'expense', amount: 7000, description: 'new', date: '2026-11-20', category: 'Groceries', person: 'joint' }));
+    expect(budgetStatus(d, budgetPeriod(d, '2026-11-22')).remaining).toBe(13000);
+  });
+  it('converts limits between cycles', () => {
+    expect(convertBudgets({ Groceries: 60000 }, 'monthly', 'weekly')).toEqual({ Groceries: 13800 });
+    expect(convertBudgets({ Groceries: 15000 }, 'weekly', 'fortnightly')).toEqual({ Groceries: 30000 });
+  });
+});

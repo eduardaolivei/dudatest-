@@ -1,6 +1,7 @@
 import type { AppData, ISODate, PersonFilter } from './types';
 import {
   affordability,
+  budgetPeriod,
   budgetStatus,
   cardStatement,
   cashAvailable,
@@ -176,8 +177,10 @@ export function alerts(data: AppData, ref: ISODate, f: PersonFilter = 'all'): Al
     if (b.status === 'overdue') out.push({ level: 'critical', text: `${b.description} (${$(b.amount)}) is overdue since ${formatDate(b.dueDate)}.` });
     else out.push({ level: 'warning', text: `${b.description} (${$(b.amount)}) is due ${b.daysLeft === 0 ? 'today' : `in ${b.daysLeft} day(s)`}.` });
   }
-  for (const r of budgetStatus(data, monthRange(ref), f).rows) {
-    if (r.spent > r.budget) out.push({ level: 'warning', text: `${r.category} is over budget by ${$(r.spent - r.budget)} this month.` });
+  const bp = budgetPeriod(data, ref);
+  const cycleWord = { weekly: 'week', fortnightly: 'fortnight', monthly: 'month' }[bp.frequency];
+  for (const r of budgetStatus(data, bp, f).rows) {
+    if (r.spent > r.budget) out.push({ level: 'warning', text: `${r.category} is over budget by ${$(r.spent - r.budget)} this ${cycleWord}.` });
     else if (r.spent > r.budget * 0.85) out.push({ level: 'info', text: `${r.category} has used ${Math.round((r.spent / r.budget) * 100)}% of its budget.` });
   }
   for (const c of data.cards.filter((c) => matchPerson(c.owner, f))) {

@@ -1,6 +1,7 @@
 import type {
   Account,
   AppData,
+  BudgetCycle,
   Card,
   Cents,
   Goal,
@@ -13,6 +14,7 @@ import type {
 import {
   addDays,
   addMonths,
+  cycleRange,
   diffDays,
   endOfMonth,
   inRange,
@@ -479,6 +481,53 @@ export function affordability(s: SafeToSpend, price: Cents) {
 // ---------------------------------------------------------------------------
 // Budgets & couple view
 // ---------------------------------------------------------------------------
+
+export const DEFAULT_CYCLE: BudgetCycle = { frequency: 'monthly', anchor: '2026-01-01' };
+
+/** Current budget cycle settings, following a recurring income if one is linked. */
+export function effectiveCycle(data: AppData): BudgetCycle {
+  const c = data.settings.budgetCycle ?? DEFAULT_CYCLE;
+  if (c.incomeRuleId) {
+    const rule = data.recurring.find((r) => r.id === c.incomeRuleId);
+    if (rule && (rule.frequency === 'weekly' || rule.frequency === 'fortnightly' || rule.frequency === 'monthly')) {
+      return { frequency: rule.frequency, anchor: rule.startDate, incomeRuleId: rule.id };
+    }
+  }
+  return c;
+}
+
+export interface BudgetPeriod extends Range {
+  frequency: BudgetCycle['frequency'];
+  nextReset: ISODate; // first day of the next cycle (payday)
+  daysLeft: number; // including today
+  dayNumber: number; // 1-based day within the cycle
+  totalDays: number;
+}
+
+export function budgetPeriod(data: AppData, ref: ISODate, offset = 0): BudgetPeriod {
+  const c = effectiveCycle(data);
+  let r = cycleRange(c.frequency, c.anchor, ref);
+  for (let i = 0; i < Math.abs(offset); i++) r = cycleRange(c.frequency, c.anchor, offset > 0 ? addDays(r.end, 1) : addDays(r.start, -1));
+  const totalDays = diffDays(r.end, r.start) + 1;
+  const clampedRef = ref < r.start ? r.start : ref > r.end ? r.end : ref;
+  return {
+    ...r,
+    frequency: c.frequency,
+    nextReset: addDays(r.end, 1),
+    daysLeft: ref > r.end ? 0 : ref < r.start ? totalDays : diffDays(r.end, ref) + 1,
+    dayNumber: diffDays(clampedRef, r.start) + 1,
+    totalDays,
+  };
+}
+
+/** Convert per-cycle budget amounts when switching cycle (e.g. $600/month -> ~$138/week). */
+export function convertBudgets(budgets: Record<string, Cents>, from: BudgetCycle['frequency'], to: BudgetCycle['frequency']): Record<string, Cents> {
+  if (from === to) return { ...budgets };
+  const perYear = { weekly: 52, fortnightly: 26, monthly: 12 };
+  const out: Record<string, Cents> = {};
+  for (const [k, v] of Object.entries(budgets)) out[k] = Math.round((v * perYear[from]) / perYear[to] / 100) * 100; // round to whole dollars
+  return out;
+}
 
 export function budgetStatus(data: AppData, r: Range, f: PersonFilter = 'all') {
   const spent = spendingByCategory(data, r, f);

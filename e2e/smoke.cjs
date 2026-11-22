@@ -149,19 +149,21 @@ const money = async (page, label) => (await page.locator('.card', { hasText: lab
     const sw = await page.evaluate(async () => { const r = await navigator.serviceWorker.getRegistration(); return !!r; });
     check('service worker registered', sw);
 
-    // 12. Budgets save automatically (no Save button needed)
+    // 12. Budgets: set, edit, remove, and follow the salary's cycle
     await page.goto(URL + '#/budgets');
-    const g = page.getByLabel('Groceries budget');
-    await g.fill('600');
-    await g.press('Enter');
-    await page.getByLabel('Housing budget').fill('2500');
-    await page.getByLabel('Groceries budget').click(); // tap elsewhere -> saves Housing
+    await page.getByRole('button', { name: 'Set Groceries limit' }).click();
+    await page.getByLabel('Limit amount').fill('600');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    check('budget limit can be set', await has(page, 'of $600.00'));
+    await page.getByRole('button', { name: 'Edit Groceries limit' }).click();
+    await page.getByLabel('Limit amount').fill('450');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
     await page.reload();
-    check('budgets auto-save and persist', (await page.getByLabel('Groceries budget').inputValue()) === '600.00' && (await page.getByLabel('Housing budget').inputValue()) === '2500.00');
-    await page.getByLabel('Housing budget').fill('');
-    await page.getByLabel('Housing budget').press('Enter');
-    await page.reload();
-    check('clearing a budget removes it', (await page.getByLabel('Housing budget').inputValue()) === '');
+    check('budget limit can be edited and persists', await has(page, 'of $450.00'));
+    await page.getByRole('button', { name: 'Budget cycle' }).click();
+    await page.getByRole('button', { name: 'Save cycle' }).click(); // default: follow "My Salary" (fortnightly)
+    check('budget follows salary cycle', (await has(page, 'fortnightly budget')) && (await has(page, /days? left|Last day/)));
+    check('limit converted monthly -> fortnightly', await has(page, 'of $208.00'));
 
     // 13. Every page renders without crashing
     for (const r of ['transactions', 'bills', 'cards', 'goals', 'budgets', 'planner', 'week', 'reports', 'assistant', 'recurring', 'more']) {

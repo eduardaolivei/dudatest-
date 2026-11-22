@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../store/StoreContext';
 import {
+  budgetPeriod,
   budgetStatus,
   cardBalanceSeries,
   cashAvailable,
@@ -15,6 +16,7 @@ import {
   spendingTotal,
   totalCardDebt,
 } from '../domain/finance';
+import { formatMoney } from '../domain/money';
 import { endOfMonth, formatDate, monthKey, monthLabel, today } from '../domain/dates';
 import { Empty, Money, PageHeader, Section, Stat, StatusBadge } from '../components/ui';
 import { CategoryChart, IncomeExpenseChart, LinesChart, MonthlySpendingChart, SERIES } from '../components/charts';
@@ -31,7 +33,8 @@ export default function Dashboard() {
     const spending = spendingTotal(data, r, person);
     // "Upcoming bills" & safe-to-spend look from today to the end of the selected month
     const s2s = safeToSpend(data, ref, 'month', { start: ref, end: endOfMonth(isCurrent || month < ref ? ref : month) }, person);
-    const budget = budgetStatus(data, r, person);
+    const bp = budgetPeriod(data, isCurrent ? ref : endOfMonth(month));
+    const budget = budgetStatus(data, bp, person);
     const cats = Object.entries(spendingByCategory(data, r, person))
       .map(([category, amount]) => ({ category, amount }))
       .sort((a, b) => b.amount - a.amount);
@@ -43,6 +46,7 @@ export default function Dashboard() {
       debt: totalCardDebt(data, person),
       s2s,
       budget,
+      bp,
       cats,
       series: monthlySeries(data, month, 6, person),
       net: netPositionSeries(data, isCurrent ? ref : endOfMonth(month), 6),
@@ -82,7 +86,7 @@ export default function Dashboard() {
         <Stat label="Upcoming bills" value={m.s2s.billsDue} tone={m.s2s.bills.some((b) => b.status === 'overdue') ? 'bad' : 'warn'} icon="calendar" hint={`${m.s2s.bills.length} to pay by ${formatDate(m.s2s.range.end)}`} />
         <Stat label="Credit card debt" value={m.debt} tone={m.debt > 0 ? 'bad' : 'default'} icon="card" hint="Not available money" />
         <Stat label="Savings" value={m.savings} tone="good" icon="target" hint="Savings accounts" />
-        <Stat label="Remaining budget" value={m.budget.remaining} tone={m.budget.remaining < 0 ? 'bad' : 'default'} icon="wallet" hint={m.budget.totalBudget ? `of ${new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 }).format(m.budget.totalBudget / 100)} budgeted` : <Link className="text-brand-600" to="/budgets">Set budgets →</Link>} />
+        <Stat label="Remaining budget" value={m.budget.remaining} tone={m.budget.remaining < 0 ? 'bad' : 'default'} icon="wallet" hint={m.budget.totalBudget ? `of ${formatMoney(m.budget.totalBudget, { short: true })} · ${isCurrent ? `resets in ${m.bp.daysLeft}d` : m.bp.frequency}` : <Link className="text-brand-600" to="/budgets">Set budgets →</Link>} />
         <Stat label="Monthly cash flow" value={flow} tone={flow >= 0 ? 'good' : 'bad'} icon="chart" hint="Income − expenses" />
       </div>
 

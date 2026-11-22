@@ -161,3 +161,26 @@ export function monthlyFactor(f: Frequency): number {
       return 0;
   }
 }
+
+/**
+ * The pay-cycle period containing `ref`.
+ * weekly/fortnightly: repeats every 7/14 days from `anchor` (works for dates before the anchor too).
+ * monthly: starts on the anchor's day of the month (clamped for short months).
+ */
+export function cycleRange(frequency: 'weekly' | 'fortnightly' | 'monthly', anchor: ISODate, ref: ISODate): { start: ISODate; end: ISODate } {
+  if (frequency === 'monthly') {
+    const day = parseISO(anchor).getUTCDate();
+    let start = addMonths(startOfMonth(ref), 0, day);
+    if (start > ref) start = addMonths(startOfMonth(ref), -1, day);
+    const next = addMonths(startOfMonth(start), 1, day);
+    return { start, end: addDays(next, -1) };
+  }
+  const len = frequency === 'weekly' ? 7 : 14;
+  const k = Math.floor(diffDays(ref, anchor) / len);
+  const start = addDays(anchor, k * len);
+  return { start, end: addDays(start, len - 1) };
+}
+
+export function weekdayName(s: ISODate, short = false): string {
+  return parseISO(s).toLocaleDateString('en-AU', { weekday: short ? 'short' : 'long', timeZone: 'UTC' });
+}

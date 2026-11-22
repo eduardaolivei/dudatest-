@@ -114,11 +114,19 @@ export interface PlannedPurchase {
   demo?: boolean;
 }
 
+/** Budget period aligned to when we get paid (e.g. weekly from Thursday). */
+export interface BudgetCycle {
+  frequency: 'weekly' | 'fortnightly' | 'monthly';
+  anchor: ISODate; // any payday; cycles start on this date and repeat
+  incomeRuleId?: string; // optional: follow a recurring income's schedule
+}
+
 export interface Settings {
   myName: string;
   partnerName: string;
   theme: 'light' | 'dark' | 'system';
-  budgets: Record<string, Cents>; // monthly budget per category group
+  budgets: Record<string, Cents>; // budget per category group, PER CYCLE (see budgetCycle)
+  budgetCycle?: BudgetCycle;
 }
 
 export interface AppData {
