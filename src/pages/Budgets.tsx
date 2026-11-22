@@ -258,62 +258,64 @@ function BudgetLine({ label, row, spentIfNone, pace, onEdit, small }: { label: s
   );
 }
 
-const NEW_SUB = '__new__';
-
 function AddBudgetForm({ unit, onSave }: { unit: string; onSave: (category: string, sub: string | undefined, newSub: string | undefined, cents: number) => void }) {
   const { data } = useStore();
   const [category, setCategory] = useState('Groceries');
-  const [sub, setSub] = useState('');
-  const [newSub, setNewSub] = useState('');
+  const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [err, setErr] = useState('');
   const subs = subcategoriesFor(category, data.settings.customSubcategories);
+  const typed = name.trim();
+  const existing = subs.find((x) => x.toLowerCase() === typed.toLowerCase());
+  const isNew = !!typed && !existing && typed.toLowerCase() !== category.toLowerCase();
 
   function submit(e: FormEvent) {
     e.preventDefault();
+    if (typed.includes('›')) return setErr('Please don’t use the › character in the name');
     const cents = parseMoney(amount);
-    let chosen: string | undefined = sub || undefined;
-    let created: string | undefined;
-    if (sub === NEW_SUB) {
-      const name = newSub.trim();
-      if (!name) return setErr('Type a name for the new subcategory');
-      if (name.includes('›')) return setErr('Please don’t use the › character');
-      chosen = subs.find((x) => x.toLowerCase() === name.toLowerCase()) ?? name;
-      if (!subs.includes(chosen)) created = chosen;
-    }
-    if (cents === null || cents <= 0) return setErr('Type an amount greater than $0, e.g. 50');
-    onSave(category, chosen, created, cents);
+    if (cents === null || cents <= 0) return setErr('Type a limit greater than $0, e.g. 50');
+    const sub = !typed || typed.toLowerCase() === category.toLowerCase() ? undefined : existing ?? typed;
+    onSave(category, sub, isNew ? typed : undefined, cents);
   }
 
   return (
     <form onSubmit={submit} className="space-y-3" noValidate>
       {err && <p className="text-sm text-red-600" role="alert">{err}</p>}
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Category">
-          <select className="input" value={category} onChange={(e) => { setCategory(e.target.value); setSub(''); }}>
-            {categoryNames.map((c) => <option key={c}>{c}</option>)}
-          </select>
-        </Field>
-        <Field label="Budget for">
-          <select className="input" value={sub} onChange={(e) => setSub(e.target.value)} aria-label="Budget for">
-            <option value="">Whole category</option>
-            {subs.map((x) => <option key={x} value={x}>{x}</option>)}
-            <option value={NEW_SUB}>+ New subcategory…</option>
-          </select>
-        </Field>
+      <Field label="Name">
+        <input
+          autoFocus
+          className="input"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          list="budget-name-suggestions"
+          placeholder="e.g. Coffee, Uber Eats, Gym"
+          aria-label="Budget name"
+        />
+        <datalist id="budget-name-suggestions">{subs.map((x) => <option key={x} value={x} />)}</datalist>
+      </Field>
+      <Field label="Category it belongs to">
+        <select className="input" value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Category it belongs to">
+          {categoryNames.map((c) => <option key={c}>{c}</option>)}
+        </select>
+      </Field>
+      <div className="flex flex-wrap gap-1.5">
+        {subs.slice(0, 8).map((x) => (
+          <button type="button" key={x} onClick={() => setName(x)} className={`rounded-full px-2.5 py-1 text-xs font-medium ${existing === x ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'}`}>{x}</button>
+        ))}
       </div>
-      {sub === NEW_SUB && (
-        <Field label="New subcategory name">
-          <input autoFocus className="input" value={newSub} onChange={(e) => setNewSub(e.target.value)} placeholder="e.g. Uber Eats, Purify supplies, Gym" />
-        </Field>
-      )}
       <Field label={`Limit per ${unit}`}>
         <div className="relative">
           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-lg muted">$</span>
           <input inputMode="decimal" className="input pl-7 text-2xl font-semibold" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} aria-label="Limit amount" />
         </div>
       </Field>
-      {sub === NEW_SUB && <p className="text-xs muted">The new subcategory will also appear when you add expenses, so spending can be tracked against it.</p>}
+      <p className="text-xs muted">
+        {!typed
+          ? `No name = a limit for the whole ${category} category.`
+          : isNew
+            ? `“${typed}” is new — it will be created in ${category} and appear when you add expenses.`
+            : `Budget for ${existing ?? category} in ${category}.`}
+      </p>
       <button type="submit" className="btn-primary w-full py-3">Save budget</button>
     </form>
   );

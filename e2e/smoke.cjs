@@ -168,13 +168,12 @@ const money = async (page, label) => (await page.locator('.card', { hasText: lab
 
     // 12b. Add more budgets: a subcategory and a brand-new subcategory
     await page.getByRole('button', { name: 'Add budget' }).click();
-    await page.getByLabel('Budget for').selectOption('Coffee');
+    await page.getByLabel('Budget name').fill('Coffee');
     await page.getByLabel('Limit amount').fill('40');
     await page.getByRole('button', { name: 'Save budget' }).click();
     check('subcategory budget added', await has(page, 'of $40.00'));
     await page.getByRole('button', { name: 'Add budget' }).click();
-    await page.getByLabel('Budget for').selectOption('__new__');
-    await page.getByPlaceholder('e.g. Uber Eats, Purify supplies, Gym').fill('Uber Eats');
+    await page.getByLabel('Budget name').fill('Uber Eats');
     await page.getByLabel('Limit amount').fill('50');
     await page.getByRole('button', { name: 'Save budget' }).click();
     check('custom subcategory budget added', await has(page, 'Uber Eats'));
