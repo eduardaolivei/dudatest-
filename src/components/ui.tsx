@@ -80,10 +80,10 @@ export function Badge({ children, className = '' }: { children: ReactNode; class
   return <span className={`whitespace-nowrap rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300 ${className}`}>{children}</span>;
 }
 
-export function Progress({ value, tone = 'brand' }: { value: number; tone?: 'brand' | 'good' | 'warn' | 'bad' }) {
-  const c = { brand: 'bg-brand-500', good: 'bg-emerald-500', warn: 'bg-amber-500', bad: 'bg-red-500' }[tone];
+export function Progress({ value, tone = 'brand', barClass, trackClass }: { value: number; tone?: 'brand' | 'good' | 'warn' | 'bad'; barClass?: string; trackClass?: string }) {
+  const c = barClass ?? { brand: 'bg-brand-500', good: 'bg-emerald-500', warn: 'bg-amber-500', bad: 'bg-red-500' }[tone];
   return (
-    <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" role="progressbar" aria-valuenow={Math.round(value * 100)}>
+    <div className={`h-2 w-full overflow-hidden rounded-full ${trackClass ?? 'bg-slate-100 dark:bg-slate-800'}`} role="progressbar" aria-valuenow={Math.round(value * 100)}>
       <div className={`h-full rounded-full ${c} transition-all`} style={{ width: `${Math.min(100, Math.max(0, value * 100))}%` }} />
     </div>
   );

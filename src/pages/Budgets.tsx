@@ -4,7 +4,7 @@ import type { BudgetCycle } from '../domain/types';
 import { budgetPeriod, budgetStatus, convertBudgets, effectiveCycle, spendingByCategory, type BudgetRow } from '../domain/finance';
 import { formatDate, today, weekdayName } from '../domain/dates';
 import { centsToInput, formatMoney, parseMoney } from '../domain/money';
-import { budgetKey, categoryNames, parseBudgetKey, subcategoriesFor } from '../domain/categories';
+import { budgetKey, categoryNames, parseBudgetKey, subcategoriesFor, themeFor, type CategoryTheme } from '../domain/categories';
 import { ConfirmButton, Field, Modal, Money, PageHeader, Progress, Section, Segmented, Stat } from '../components/ui';
 import { Icon } from '../components/Icon';
 
@@ -100,31 +100,34 @@ export default function Budgets() {
             Tap <b>Set limit</b> on a category, or <b>+ Add budget</b> for something more specific like Coffee, Food Delivery or a new item of your own.
           </p>
         )}
-        <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+        <ul className="space-y-3">
           {categoryNames.map((c) => {
+            const t = themeFor(c);
             const catRow = rowsByKey.get(c);
             const subRows = status.rows.filter((r) => r.category === c && r.subcategory);
+            const open = !collapsed.has(c);
             return (
-              <li key={c} className="py-3">
+              <li key={c} className={`rounded-2xl border p-3 sm:p-4 ${t.card}`}>
                 <BudgetLine
                   label={c}
+                  theme={t}
                   row={catRow}
                   spentIfNone={spent[c] ?? 0}
                   pace={pace}
                   onEdit={() => setEditing(c)}
-                  toggle={subRows.length > 0 ? { open: !collapsed.has(c), onClick: () => toggle(c), count: subRows.length } : undefined}
+                  toggle={subRows.length > 0 ? { open, onClick: () => toggle(c), count: subRows.length } : undefined}
                 />
-                {subRows.length > 0 && collapsed.has(c) && (
-                  <button className="mt-1.5 block text-left text-xs muted hover:text-brand-600" onClick={() => toggle(c)}>
+                {subRows.length > 0 && !open && (
+                  <button className="mt-2 ml-11 block text-left text-xs muted hover:underline" onClick={() => toggle(c)}>
                     {subRows.length} item{subRows.length === 1 ? '' : 's'} · <Money cents={subRows.reduce((a, r) => a + r.spent, 0)} /> of <Money cents={subRows.reduce((a, r) => a + r.budget, 0)} />
                     {subRows.some((r) => r.spent > r.budget) && <span className="font-medium text-red-600"> · {subRows.filter((r) => r.spent > r.budget).length} over</span>}
                   </button>
                 )}
-                {subRows.length > 0 && !collapsed.has(c) && (
-                  <ul className="mt-2 space-y-2 border-l-2 border-slate-100 pl-3 dark:border-slate-800">
+                {subRows.length > 0 && open && (
+                  <ul className="mt-3 space-y-2">
                     {subRows.map((r) => (
-                      <li key={r.key}>
-                        <BudgetLine label={r.label} row={r} spentIfNone={0} pace={pace} onEdit={() => setEditing(r.key)} small />
+                      <li key={r.key} className={`rounded-xl border px-3 py-2.5 ${t.sub}`}>
+                        <BudgetLine label={r.label} theme={t} row={r} spentIfNone={0} pace={pace} onEdit={() => setEditing(r.key)} small />
                       </li>
                     ))}
                   </ul>
@@ -267,37 +270,44 @@ function CycleForm({ current, onSave }: { current: BudgetCycle; onSave: (c: Budg
   );
 }
 
-function BudgetLine({ label, row, spentIfNone, pace, onEdit, small, toggle }: { label: string; row?: BudgetRow; spentIfNone: number; pace: number; onEdit: () => void; small?: boolean; toggle?: { open: boolean; onClick: () => void; count: number } }) {
+function BudgetLine({ label, theme: t, row, spentIfNone, pace, onEdit, small, toggle }: { label: string; theme: CategoryTheme; row?: BudgetRow; spentIfNone: number; pace: number; onEdit: () => void; small?: boolean; toggle?: { open: boolean; onClick: () => void; count: number } }) {
   const budget = row?.budget ?? 0;
   const s = row ? row.spent : spentIfNone;
   const ratio = budget ? s / budget : 0;
+  const fast = pace > 0 && ratio < 1 && ratio > pace + 0.15;
+  // Status colours stay soft too: coral when over, peach when going fast, category colour otherwise.
+  const bar = ratio > 1 ? 'bg-red-300 dark:bg-red-400/80' : fast && ratio > 0.85 ? 'bg-orange-300 dark:bg-orange-400/80' : t.bar;
+  const titleCls = small ? 'text-sm font-medium text-slate-700 dark:text-slate-200' : `text-base font-semibold ${t.title}`;
   return (
     <div>
       <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          {toggle ? (
-            <button className="-ml-1 flex items-center gap-1 rounded-lg px-1 font-medium hover:bg-slate-100 dark:hover:bg-slate-800" onClick={toggle.onClick} aria-expanded={toggle.open} aria-label={`${toggle.open ? 'Hide' : 'Show'} ${label} subcategories`}>
-              <Icon name="chevronRight" className={`h-4 w-4 text-slate-400 transition-transform ${toggle.open ? 'rotate-90' : ''}`} />
-              {label}
-              <span className="ml-1 rounded-full bg-slate-100 px-1.5 text-[11px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{toggle.count}</span>
-            </button>
-          ) : (
-            <div className={small ? 'text-sm font-medium' : 'font-medium'}>{label}</div>
-          )}
-          <div className="text-xs muted"><Money cents={s} /> spent{budget ? <> of <Money cents={budget} /></> : ' · no limit'}</div>
+        <div className="flex min-w-0 items-center gap-3">
+          {!small && <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl text-base ${t.chip}`} aria-hidden>{t.emoji}</span>}
+          <div className="min-w-0">
+            {toggle ? (
+              <button className={`-ml-1 flex items-center gap-1.5 rounded-lg px-1 ${titleCls} hover:opacity-80`} onClick={toggle.onClick} aria-expanded={toggle.open} aria-label={`${toggle.open ? 'Hide' : 'Show'} ${label} subcategories`}>
+                {label}
+                <span className={`rounded-full px-1.5 text-[11px] font-semibold ${t.chip}`}>{toggle.count}</span>
+                <Icon name="chevronRight" className={`h-4 w-4 opacity-60 transition-transform ${toggle.open ? 'rotate-90' : ''}`} />
+              </button>
+            ) : (
+              <div className={titleCls}>{label}</div>
+            )}
+            <div className="text-xs muted"><Money cents={s} /> spent{budget ? <> of <Money cents={budget} /></> : ' · no limit'}</div>
+          </div>
         </div>
-        <button className={budget ? 'btn-secondary text-xs' : 'btn-primary text-xs'} onClick={onEdit} aria-label={`${budget ? 'Edit' : 'Set'} ${label} limit`}>
+        <button className={`btn shrink-0 px-3 py-1.5 text-xs ${t.button}`} onClick={onEdit} aria-label={`${budget ? 'Edit' : 'Set'} ${label} limit`}>
           {budget ? <><Icon name="edit" className="h-3.5 w-3.5" />Edit</> : <><Icon name="plus" className="h-3.5 w-3.5" />Set limit</>}
         </button>
       </div>
       {budget > 0 && (
-        <>
-          <div className="mt-2"><Progress value={ratio} tone={ratio > 1 ? 'bad' : ratio < 1 && ratio > Math.max(0.85, pace + 0.15) ? 'warn' : 'good'} /></div>
-          <div className={`mt-1 text-xs ${ratio > 1 ? 'font-medium text-red-600' : 'muted'}`}>
+        <div className={small ? 'mt-2' : 'mt-2.5 sm:ml-11'}>
+          <Progress value={ratio} barClass={bar} trackClass={t.track} />
+          <div className={`mt-1 text-xs ${ratio > 1 ? 'font-medium text-red-600 dark:text-red-400' : 'muted'}`}>
             {ratio > 1 ? <>Over by <Money cents={s - budget} /></> : <><Money cents={budget - s} /> left</>}
-            {ratio === 1 ? ' · fully used' : pace > 0 && ratio < 1 && ratio > pace + 0.15 && ' · spending faster than the days are passing'}
+            {ratio === 1 ? ' · fully used' : fast && ' · spending faster than the days are passing'}
           </div>
-        </>
+        </div>
       )}
     </div>
   );
