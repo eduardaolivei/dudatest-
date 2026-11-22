@@ -184,6 +184,14 @@ const money = async (page, label) => (await page.locator('.card', { hasText: lab
     await page.getByRole('button', { name: 'Save', exact: true }).click();
     check('spending counts against custom budget', await has(page, '$28.00 left'));
 
+    // 12c. Collapse / expand subcategories
+    await page.getByRole('button', { name: 'Hide Groceries subcategories' }).click();
+    check('collapsing hides subcategories', (await page.getByText('of $40.00').count()) === 0 && (await has(page, /2 items/)));
+    await page.reload();
+    check('collapsed state remembered', (await page.getByText('of $40.00').count()) === 0);
+    await page.getByRole('button', { name: 'Expand all' }).click();
+    check('expand all shows them again', await has(page, 'of $40.00'));
+
     // 13. Every page renders without crashing
     for (const r of ['transactions', 'bills', 'cards', 'goals', 'budgets', 'planner', 'week', 'reports', 'assistant', 'recurring', 'more']) {
       await page.goto(URL + '#/' + r);

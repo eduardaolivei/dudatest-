@@ -8,6 +8,7 @@ import { budgetKey, categoryNames, parseBudgetKey, subcategoriesFor } from '../d
 import { ConfirmButton, Field, Modal, Money, PageHeader, Progress, Section, Segmented, Stat } from '../components/ui';
 import { Icon } from '../components/Icon';
 
+const COLLAPSE_KEY = 'our-money-dashboard:budgets-collapsed';
 const CYCLE_LABEL = { weekly: 'week', fortnightly: 'fortnight', monthly: 'month' } as const;
 
 export default function Budgets() {
@@ -17,6 +18,19 @@ export default function Budgets() {
   const [editing, setEditing] = useState<string | null>(null);
   const [cycleOpen, setCycleOpen] = useState(false);
   const [adding, setAdding] = useState(false);
+  // Which categories have their subcategories hidden (remembered on this device)
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem(COLLAPSE_KEY) ?? '[]')); } catch { return new Set(); }
+  });
+  const saveCollapsed = (next: Set<string>) => {
+    setCollapsed(next);
+    try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...next])); } catch { /* ignore */ }
+  };
+  const toggle = (c: string) => {
+    const next = new Set(collapsed);
+    if (next.has(c)) next.delete(c); else next.add(c);
+    saveCollapsed(next);
+  };
 
   const cycle = effectiveCycle(data);
   const period = useMemo(() => budgetPeriod(data, ref, offset), [data, ref, offset]);
@@ -26,6 +40,9 @@ export default function Budgets() {
   const unit = CYCLE_LABEL[cycle.frequency];
   const rowsByKey = new Map(status.rows.map((r) => [r.key, r]));
   const pace = isCurrent ? period.dayNumber / period.totalDays : 0;
+  const catsWithSubs = categoryNames.filter((c) => status.rows.some((r) => r.category === c && r.subcategory));
+  const allCollapsed = catsWithSubs.length > 0 && catsWithSubs.every((c) => collapsed.has(c));
+  const setCollapsedAll = (hide: boolean) => saveCollapsed(hide ? new Set(catsWithSubs) : new Set());
   const linkedIncome = cycle.incomeRuleId ? data.recurring.find((r) => r.id === cycle.incomeRuleId) : undefined;
 
   return (
@@ -64,7 +81,20 @@ export default function Budgets() {
         <Stat label="Per day until payday" value={isCurrent && period.daysLeft > 0 ? Math.max(0, Math.floor(status.remaining / period.daysLeft)) : 0} icon="calendar" hint={isCurrent ? `${period.daysLeft} day${period.daysLeft === 1 ? '' : 's'} left` : 'Current cycle only'} />
       </div>
 
-      <Section title="Budgets" action={<button className="btn-primary text-xs" onClick={() => setAdding(true)}><Icon name="plus" className="h-3.5 w-3.5" />Add budget</button>}>
+      <Section
+        title="Budgets"
+        action={
+          <div className="flex gap-2">
+            {catsWithSubs.length > 0 && (
+              <button className="btn-ghost text-xs" onClick={() => setCollapsedAll(!allCollapsed)}>
+                <Icon name="chevronRight" className={`h-3.5 w-3.5 transition-transform ${allCollapsed ? '' : 'rotate-90'}`} />
+                {allCollapsed ? 'Expand all' : 'Collapse all'}
+              </button>
+            )}
+            <button className="btn-primary text-xs" onClick={() => setAdding(true)}><Icon name="plus" className="h-3.5 w-3.5" />Add budget</button>
+          </div>
+        }
+      >
         {status.rows.length === 0 && (
           <p className="mb-3 rounded-xl bg-brand-50 p-2.5 text-sm text-brand-700 dark:bg-brand-600/15 dark:text-brand-100">
             Tap <b>Set limit</b> on a category, or <b>+ Add budget</b> for something more specific like Coffee, Food Delivery or a new item of your own.
@@ -82,8 +112,15 @@ export default function Budgets() {
                   spentIfNone={spent[c] ?? 0}
                   pace={pace}
                   onEdit={() => setEditing(c)}
+                  toggle={subRows.length > 0 ? { open: !collapsed.has(c), onClick: () => toggle(c), count: subRows.length } : undefined}
                 />
-                {subRows.length > 0 && (
+                {subRows.length > 0 && collapsed.has(c) && (
+                  <button className="mt-1.5 block text-left text-xs muted hover:text-brand-600" onClick={() => toggle(c)}>
+                    {subRows.length} item{subRows.length === 1 ? '' : 's'} · <Money cents={subRows.reduce((a, r) => a + r.spent, 0)} /> of <Money cents={subRows.reduce((a, r) => a + r.budget, 0)} />
+                    {subRows.some((r) => r.spent > r.budget) && <span className="font-medium text-red-600"> · {subRows.filter((r) => r.spent > r.budget).length} over</span>}
+                  </button>
+                )}
+                {subRows.length > 0 && !collapsed.has(c) && (
                   <ul className="mt-2 space-y-2 border-l-2 border-slate-100 pl-3 dark:border-slate-800">
                     {subRows.map((r) => (
                       <li key={r.key}>
@@ -230,7 +267,7 @@ function CycleForm({ current, onSave }: { current: BudgetCycle; onSave: (c: Budg
   );
 }
 
-function BudgetLine({ label, row, spentIfNone, pace, onEdit, small }: { label: string; row?: BudgetRow; spentIfNone: number; pace: number; onEdit: () => void; small?: boolean }) {
+function BudgetLine({ label, row, spentIfNone, pace, onEdit, small, toggle }: { label: string; row?: BudgetRow; spentIfNone: number; pace: number; onEdit: () => void; small?: boolean; toggle?: { open: boolean; onClick: () => void; count: number } }) {
   const budget = row?.budget ?? 0;
   const s = row ? row.spent : spentIfNone;
   const ratio = budget ? s / budget : 0;
@@ -238,7 +275,15 @@ function BudgetLine({ label, row, spentIfNone, pace, onEdit, small }: { label: s
     <div>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className={small ? 'text-sm font-medium' : 'font-medium'}>{label}</div>
+          {toggle ? (
+            <button className="-ml-1 flex items-center gap-1 rounded-lg px-1 font-medium hover:bg-slate-100 dark:hover:bg-slate-800" onClick={toggle.onClick} aria-expanded={toggle.open} aria-label={`${toggle.open ? 'Hide' : 'Show'} ${label} subcategories`}>
+              <Icon name="chevronRight" className={`h-4 w-4 text-slate-400 transition-transform ${toggle.open ? 'rotate-90' : ''}`} />
+              {label}
+              <span className="ml-1 rounded-full bg-slate-100 px-1.5 text-[11px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{toggle.count}</span>
+            </button>
+          ) : (
+            <div className={small ? 'text-sm font-medium' : 'font-medium'}>{label}</div>
+          )}
           <div className="text-xs muted"><Money cents={s} /> spent{budget ? <> of <Money cents={budget} /></> : ' · no limit'}</div>
         </div>
         <button className={budget ? 'btn-secondary text-xs' : 'btn-primary text-xs'} onClick={onEdit} aria-label={`${budget ? 'Edit' : 'Set'} ${label} limit`}>
@@ -247,10 +292,10 @@ function BudgetLine({ label, row, spentIfNone, pace, onEdit, small }: { label: s
       </div>
       {budget > 0 && (
         <>
-          <div className="mt-2"><Progress value={ratio} tone={ratio > 1 ? 'bad' : ratio > Math.max(0.85, pace + 0.15) ? 'warn' : 'good'} /></div>
+          <div className="mt-2"><Progress value={ratio} tone={ratio > 1 ? 'bad' : ratio < 1 && ratio > Math.max(0.85, pace + 0.15) ? 'warn' : 'good'} /></div>
           <div className={`mt-1 text-xs ${ratio > 1 ? 'font-medium text-red-600' : 'muted'}`}>
             {ratio > 1 ? <>Over by <Money cents={s - budget} /></> : <><Money cents={budget - s} /> left</>}
-            {pace > 0 && ratio <= 1 && ratio > pace + 0.15 && ' · spending faster than the days are passing'}
+            {ratio === 1 ? ' · fully used' : pace > 0 && ratio < 1 && ratio > pace + 0.15 && ' · spending faster than the days are passing'}
           </div>
         </>
       )}
