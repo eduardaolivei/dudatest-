@@ -6,6 +6,7 @@ import { sum } from '../domain/money';
 import { skipOccurrence } from '../store/actions';
 import { Badge, Empty, Money, PageHeader, Section, Segmented, Stat, StatusBadge } from '../components/ui';
 import { SettleDialog, type SettleTarget } from '../components/SettleDialog';
+import { BillEditDialog, type BillEditTarget } from '../components/BillEditDialog';
 import { Icon } from '../components/Icon';
 
 export default function Bills() {
@@ -13,6 +14,7 @@ export default function Bills() {
   const ref = today();
   const [view, setView] = useState<'list' | 'calendar'>('list');
   const [settle, setSettle] = useState<SettleTarget | null>(null);
+  const [editing, setEditing] = useState<BillEditTarget | null>(null);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
   const monthEnd = endOfMonth(month < ref ? ref : month);
@@ -49,13 +51,13 @@ export default function Bills() {
       </div>
 
       {view === 'calendar' ? (
-        <Calendar month={month} bills={bills} paid={paid.map((t) => ({ date: t.date, amount: t.amount, description: t.description }))} selected={selectedDay} onSelect={setSelectedDay} onSettle={(b) => setSettle({ type: 'bill', bill: b })} />
+        <Calendar month={month} bills={bills} paid={paid.map((t) => ({ date: t.date, amount: t.amount, description: t.description }))} selected={selectedDay} onSelect={setSelectedDay} onSettle={(b) => setSettle({ type: 'bill', bill: b })} onEdit={(b) => setEditing({ type: 'bill', bill: b })} />
       ) : (
         <Section title={`To pay (through ${formatDate(monthEnd)})`}>
           {bills.length === 0 ? (
             <Empty icon="calendar" title="All clear 🎉" text="No unpaid bills. Add rent, utilities or subscriptions as recurring bills so they show up here automatically." action={<button className="btn-primary" onClick={() => openQuickAdd('bill')}>Add Bill</button>} />
           ) : (
-            <BillList bills={bills} onSettle={(b) => setSettle({ type: 'bill', bill: b })} onSkip={(b) => update((d) => skipOccurrence(d, b.ruleId!, b.occurrence!), 'Skipped this occurrence')} />
+            <BillList bills={bills} onSettle={(b) => setSettle({ type: 'bill', bill: b })} onEdit={(b) => setEditing({ type: 'bill', bill: b })} onSkip={(b) => update((d) => skipOccurrence(d, b.ruleId!, b.occurrence!), 'Skipped this occurrence')} />
           )}
         </Section>
       )}
@@ -71,7 +73,10 @@ export default function Bills() {
                   <div className="truncate font-medium">{t.description}</div>
                   <div className="text-xs muted">Paid {formatDate(t.date)}{t.dueDate && t.dueDate !== t.date ? ` · due ${formatDate(t.dueDate)}` : ''}</div>
                 </div>
-                <div className="flex items-center gap-2"><StatusBadge status="paid" /><Money cents={t.amount} className="font-semibold" /></div>
+                <div className="flex items-center gap-2">
+                  <StatusBadge status="paid" /><Money cents={t.amount} className="font-semibold" />
+                  <button className="btn-ghost p-1.5" onClick={() => setEditing({ type: 'paid', tx: t })} aria-label={`Edit ${t.description}`}><Icon name="edit" className="h-4 w-4" /></button>
+                </div>
               </li>
             ))}
           </ul>
@@ -79,11 +84,12 @@ export default function Bills() {
       </Section>
 
       <SettleDialog target={settle} onClose={() => setSettle(null)} />
+      <BillEditDialog target={editing} onClose={() => setEditing(null)} />
     </div>
   );
 }
 
-function BillList({ bills, onSettle, onSkip }: { bills: Bill[]; onSettle: (b: Bill) => void; onSkip?: (b: Bill) => void }) {
+function BillList({ bills, onSettle, onSkip, onEdit }: { bills: Bill[]; onSettle: (b: Bill) => void; onSkip?: (b: Bill) => void; onEdit?: (b: Bill) => void }) {
   return (
     <ul className="divide-y divide-slate-100 dark:divide-slate-800">
       {bills.map((b) => (
@@ -108,6 +114,7 @@ function BillList({ bills, onSettle, onSkip }: { bills: Bill[]; onSettle: (b: Bi
             <StatusBadge status={b.status} />
             {b.onCard && <Badge>charged to card</Badge>}
             <div className="ml-auto flex gap-1">
+              {onEdit && <button className="btn-ghost px-2 py-1 text-xs" onClick={() => onEdit(b)} aria-label={`Edit ${b.description}`}><Icon name="edit" className="h-3.5 w-3.5" />Edit</button>}
               {b.source === 'recurring' && onSkip && <button className="btn-ghost px-2 py-1 text-xs" onClick={() => onSkip(b)} title="Skip this occurrence">Skip</button>}
               <button className="btn-secondary px-2.5 py-1 text-xs" onClick={() => onSettle(b)}>
                 <Icon name="check" className="h-3.5 w-3.5" />{b.source === 'card' ? 'Pay' : 'Paid'}
@@ -120,13 +127,14 @@ function BillList({ bills, onSettle, onSkip }: { bills: Bill[]; onSettle: (b: Bi
   );
 }
 
-function Calendar({ month, bills, paid, selected, onSelect, onSettle }: {
+function Calendar({ month, bills, paid, selected, onSelect, onSettle, onEdit }: {
   month: string;
   bills: Bill[];
   paid: { date: string; amount: number; description: string }[];
   selected: string | null;
   onSelect: (d: string | null) => void;
   onSettle: (b: Bill) => void;
+  onEdit: (b: Bill) => void;
 }) {
   const start = startOfMonth(month);
   const end = endOfMonth(month);
@@ -175,7 +183,7 @@ function Calendar({ month, bills, paid, selected, onSelect, onSettle }: {
         <div className="mt-4 border-t border-slate-100 pt-3 dark:border-slate-800">
           <div className="mb-2 text-sm font-semibold">{formatDate(selected)}</div>
           {dayBills.length === 0 && dayPaid.length === 0 && <p className="text-sm muted">Nothing on this day.</p>}
-          {dayBills.length > 0 && <BillList bills={dayBills} onSettle={onSettle} />}
+          {dayBills.length > 0 && <BillList bills={dayBills} onSettle={onSettle} onEdit={onEdit} />}
           {dayPaid.map((p, i) => (
             <div key={i} className="flex justify-between py-1 text-sm"><span>{p.description}</span><span className="flex items-center gap-2"><StatusBadge status="paid" /><Money cents={p.amount} /></span></div>
           ))}

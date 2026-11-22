@@ -192,6 +192,42 @@ const money = async (page, label) => (await page.locator('.card', { hasText: lab
     await page.getByRole('button', { name: 'Expand all' }).click();
     check('expand all shows them again', await has(page, 'of $40.00'));
 
+    // 12d. Editing bills (wrong amount / date)
+    await page.getByRole('button', { name: 'Add transaction' }).click();
+    await page.getByRole('button', { name: 'Bill', exact: true }).click();
+    await page.getByLabel('Amount').fill('80');
+    await page.getByPlaceholder('e.g. Woolworths').fill('Water');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.goto(URL + '#/bills');
+    await page.getByRole('button', { name: 'Edit Water' }).click();
+    await page.getByLabel('Amount').fill('95');
+    await page.getByRole('button', { name: 'Save changes' }).click();
+    check('one-off bill amount edited', await has(page, '$95.00'));
+
+    await page.getByRole('button', { name: 'Add transaction' }).click();
+    await page.getByRole('button', { name: 'Bill', exact: true }).click();
+    await page.getByLabel('Amount').fill('70');
+    await page.getByPlaceholder('e.g. Woolworths').fill('Internet');
+    await page.getByLabel('Frequency').selectOption('monthly');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.getByRole('button', { name: 'Edit Internet' }).first().click();
+    await page.getByLabel('Bill amount').fill('75.50');
+    await page.getByRole('button', { name: 'Save this bill' }).click();
+    check('recurring bill: only this one edited', await has(page, '$75.50'));
+
+    const unpaidCount = () => page.getByRole('button', { name: 'Paid', exact: true }).count();
+    const n0 = await unpaidCount();
+    await page.getByRole('button', { name: 'Paid', exact: true }).first().click();
+    await page.getByRole('button', { name: 'Confirm paid' }).click();
+    await page.waitForTimeout(200);
+    const n1 = await unpaidCount();
+    await page.locator('section', { hasText: 'Paid —' }).getByRole('button', { name: /^Edit / }).first().click();
+    await page.getByRole('button', { name: 'Not paid yet (undo)' }).click();
+    await page.getByRole('button', { name: 'Tap again to undo payment' }).click();
+    await page.waitForTimeout(200);
+    const n2 = await unpaidCount();
+    check('paid bill can be undone', n1 === n0 - 1 && n2 === n0, `${n0} -> ${n1} -> ${n2}`);
+
     // 13. Every page renders without crashing
     for (const r of ['transactions', 'bills', 'cards', 'goals', 'budgets', 'planner', 'week', 'reports', 'assistant', 'recurring', 'more']) {
       await page.goto(URL + '#/' + r);

@@ -128,7 +128,7 @@ export default function Recurring() {
   );
 }
 
-function RuleForm({ rule, onSave, onDelete }: { rule: RecurringRule; onSave: (r: RecurringRule) => void; onDelete: () => void }) {
+export function RuleForm({ rule, onSave, onDelete }: { rule: RecurringRule; onSave: (r: RecurringRule) => void; onDelete: () => void }) {
   const { data, personName } = useStore();
   const [f, setF] = useState({ ...rule, amountStr: centsToInput(rule.amount) });
   const [err, setErr] = useState('');

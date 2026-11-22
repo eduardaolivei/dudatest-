@@ -300,8 +300,18 @@ export function billStatus(dueDate: ISODate, ref: ISODate, paid = false): BillSt
 
 export const RECURRING_LOOKBACK_DAYS = 45;
 
+/** Half a period, in days: a payment this close to an occurrence settles it. */
+const SETTLE_WINDOW: Record<RecurringRule['frequency'], number> = { weekly: 3, fortnightly: 6, monthly: 14, quarterly: 44, yearly: 180 };
+
+/**
+ * An occurrence is settled if it was skipped or has a linked transaction (paid,
+ * or a pending one-off edit). Matching uses a window of ±half a period so that
+ * correcting a rule's date later doesn't make already-paid bills reappear.
+ */
 export function isSettled(rule: RecurringRule, occ: ISODate, txs: Transaction[]): boolean {
-  return (rule.skipped ?? []).includes(occ) || txs.some((t) => t.recurringId === rule.id && t.occurrence === occ);
+  const w = SETTLE_WINDOW[rule.frequency];
+  const near = (d?: ISODate) => !!d && Math.abs(diffDays(d, occ)) <= w;
+  return (rule.skipped ?? []).some(near) || txs.some((t) => t.recurringId === rule.id && (t.occurrence === occ || near(t.occurrence)));
 }
 
 /** Expected (not yet confirmed) occurrences of recurring rules in a window. */

@@ -67,3 +67,27 @@ describe('subcategory budgets', () => {
     expect(st.totalSpent).toBe(13500);
   });
 });
+
+describe('editing recurring bills', () => {
+  it('changing the due date does not resurrect paid bills', async () => {
+    const { unpaidBills } = await import('./finance');
+    const { settleOccurrence } = await import('../store/actions');
+    let d = emptyData();
+    const rent = { id: 'r', kind: 'expense' as const, description: 'Rent', amount: 200000, frequency: 'monthly' as const, startDate: '2026-10-01', category: 'Housing', person: 'joint' as const };
+    d.recurring.push(rent);
+    d = settleOccurrence(d, rent, '2026-10-01');
+    d = settleOccurrence(d, rent, '2026-11-01');
+    // user fixes the day: rent is actually due on the 3rd
+    d.recurring = [{ ...rent, startDate: '2026-10-03' }];
+    const bills = unpaidBills(d, '2026-11-22', '2026-12-31');
+    expect(bills.map((b) => b.dueDate)).toEqual(['2026-12-03']);
+  });
+  it('a one-off pending edit replaces that occurrence only', async () => {
+    const { unpaidBills } = await import('./finance');
+    const d = emptyData();
+    d.recurring.push({ id: 'r', kind: 'expense', description: 'Power', amount: 15000, frequency: 'monthly', startDate: '2026-11-25', category: 'Housing', person: 'joint' });
+    d.transactions.push(newTx({ kind: 'expense', status: 'pending', amount: 18900, description: 'Power', date: '2026-11-27', dueDate: '2026-11-27', category: 'Housing', person: 'joint', recurringId: 'r', occurrence: '2026-11-25' }));
+    const bills = unpaidBills(d, '2026-11-22', '2026-12-31');
+    expect(bills.map((b) => [b.dueDate, b.amount, b.source])).toEqual([['2026-11-27', 18900, 'tx'], ['2026-12-25', 15000, 'recurring']]);
+  });
+});
