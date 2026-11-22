@@ -29,6 +29,8 @@ const paths: Record<string, string> = {
   arrowUp: 'M12 19V5M5 12l7-7 7 7',
   arrowDown: 'M12 5v14M19 12l-7 7-7-7',
   swap: 'M7 16V4M3 8l4-4 4 4M17 8v12M21 16l-4 4-4-4',
+  sun: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4',
+  moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
 };
 
 export function Icon({ name, className = 'h-5 w-5' }: { name: keyof typeof paths | string; className?: string }) {

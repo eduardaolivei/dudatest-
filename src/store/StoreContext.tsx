@@ -25,6 +25,7 @@ interface Store {
   openQuickAdd: (m: QuickAddMode) => void;
   closeQuickAdd: () => void;
   personName: (p: Person) => string;
+  isDark: boolean;
 }
 
 export type QuickAddMode = 'expense' | 'income' | 'bill' | 'card' | 'payment' | 'transfer';
@@ -50,19 +51,18 @@ export function StoreProvider({ children, adapter = localAdapter }: { children: 
     }
   }, [data, adapter]);
 
-  // Apply theme
+  // Theme: follow the device when set to "system", otherwise the chosen mode.
+  const [systemDark, setSystemDark] = useState(() => typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches);
   useEffect(() => {
-    const apply = () => {
-      const dark =
-        data.settings.theme === 'dark' ||
-        (data.settings.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-      document.documentElement.classList.toggle('dark', dark);
-    };
-    apply();
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    mq.addEventListener('change', apply);
-    return () => mq.removeEventListener('change', apply);
-  }, [data.settings.theme]);
+    const onChange = () => setSystemDark(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  const isDark = data.settings.theme === 'dark' || (data.settings.theme === 'system' && systemDark);
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', isDark);
+  }, [isDark]);
 
   const notify = useCallback((text: string, tone: 'ok' | 'error' = 'ok') => {
     setToast({ id: Date.now(), text, tone });
@@ -95,8 +95,9 @@ export function StoreProvider({ children, adapter = localAdapter }: { children: 
       openQuickAdd: setQuickAdd,
       closeQuickAdd: () => setQuickAdd(null),
       personName: (p: Person) => (p === 'me' ? data.settings.myName : p === 'patrick' ? data.settings.partnerName : 'Joint'),
+      isDark,
     }),
-    [data, update, adapter, saveError, person, month, toast, notify, quickAdd],
+    [data, update, adapter, saveError, person, month, toast, notify, quickAdd, isDark],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

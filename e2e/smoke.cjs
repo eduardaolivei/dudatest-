@@ -228,6 +228,17 @@ const money = async (page, label) => (await page.locator('.card', { hasText: lab
     const n2 = await unpaidCount();
     check('paid bill can be undone', n1 === n0 - 1 && n2 === n0, `${n0} -> ${n1} -> ${n2}`);
 
+    // 12e. Day / night toggle in the top bar
+    await page.goto(URL);
+    const darkNow = () => page.evaluate(() => document.documentElement.classList.contains('dark'));
+    const before2 = await darkNow();
+    await page.getByRole('button', { name: before2 ? 'Switch to day mode' : 'Switch to night mode' }).click();
+    const after1 = await darkNow();
+    await page.reload();
+    const afterReload = await darkNow();
+    await page.getByRole('button', { name: afterReload ? 'Switch to day mode' : 'Switch to night mode' }).click();
+    check('day/night toggle works and is remembered', after1 === !before2 && afterReload === after1 && (await darkNow()) === before2);
+
     // 13. Every page renders without crashing
     for (const r of ['transactions', 'bills', 'cards', 'goals', 'budgets', 'planner', 'week', 'reports', 'assistant', 'recurring', 'more']) {
       await page.goto(URL + '#/' + r);

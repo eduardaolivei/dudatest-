@@ -44,7 +44,9 @@ function NavItem({ to, label, icon, compact = false }: { to: string; label: stri
 }
 
 export function Layout({ children }: { children: ReactNode }) {
-  const { person, setPerson, month, setMonth, openQuickAdd, toast, saveError, personName } = useStore();
+  const { person, setPerson, month, setMonth, openQuickAdd, toast, saveError, personName, update, isDark } = useStore();
+  // Day / night toggle: flips whatever is showing now (Auto follows the device until you choose).
+  const toggleTheme = () => update((d) => ({ ...d, settings: { ...d.settings, theme: isDark ? 'light' : 'dark' } }), isDark ? '☀️ Day mode' : '🌙 Night mode');
   const [searchOpen, setSearchOpen] = useState(false);
   const loc = useLocation();
   const moreActive = MORE.some((m) => loc.pathname.startsWith(m.to)) || loc.pathname === '/more';
@@ -95,6 +97,9 @@ export function Layout({ children }: { children: ReactNode }) {
             </select>
             {!isCurrentMonth && <button className="text-xs font-medium text-brand-600" onClick={() => setMonth(today())}>Today</button>}
             <div className="flex-1" />
+            <button className="btn-secondary px-2.5" onClick={toggleTheme} aria-label={isDark ? 'Switch to day mode' : 'Switch to night mode'} title={isDark ? 'Day mode' : 'Night mode'}>
+              <Icon name={isDark ? 'sun' : 'moon'} className="h-4 w-4" />
+            </button>
             <button className="btn-secondary px-2.5" onClick={() => setSearchOpen(true)} aria-label="Search">
               <Icon name="search" className="h-4 w-4" /> <span className="hidden sm:inline">Search</span>
             </button>
