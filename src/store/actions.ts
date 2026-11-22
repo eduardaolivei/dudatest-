@@ -23,7 +23,7 @@ export function upsert<C extends Collection>(data: AppData, col: C, item: Item<C
 }
 
 export function remove<C extends Collection>(data: AppData, col: C, id: string): AppData {
-  let next: AppData = { ...data, [col]: (data[col] as Item<C>[]).filter((x) => x.id !== id) };
+  let next: AppData = { ...data, [col]: (data[col] as Item<C>[]).filter((x) => x.id !== id), deletedIds: tombstone(data, [id]) };
   // Keep data consistent: deleting an account/card/rule unlinks references.
   if (col === 'recurring') {
     next = { ...next, transactions: next.transactions.map((t) => (t.recurringId === id ? { ...t, recurringId: undefined, occurrence: undefined } : t)) };
@@ -146,8 +146,10 @@ export function contributeGoal(data: AppData, goal: Goal, amount: Cents): AppDat
 }
 
 export function removeDemo(data: AppData): AppData {
+  const demoIds = [data.accounts, data.cards, data.transactions, data.recurring, data.goals, data.purchases].flatMap((l) => l.filter((x) => x.demo).map((x) => x.id));
   return {
     ...data,
+    deletedIds: tombstone(data, demoIds),
     accounts: data.accounts.filter((x) => !x.demo),
     cards: data.cards.filter((x) => !x.demo),
     transactions: data.transactions.filter((x) => !x.demo),
@@ -159,3 +161,11 @@ export function removeDemo(data: AppData): AppData {
 
 export const hasDemo = (d: AppData) =>
   [d.accounts, d.cards, d.transactions, d.recurring, d.goals, d.purchases].some((l) => l.some((x) => x.demo));
+
+/** Remember deleted ids (newest last, capped) so cloud sync never brings them back. */
+export const MAX_TOMBSTONES = 5000;
+export function tombstone(data: AppData, ids: string[]): string[] {
+  const set = new Set(data.deletedIds ?? []);
+  for (const id of ids) set.add(id);
+  return [...set].slice(-MAX_TOMBSTONES);
+}

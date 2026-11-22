@@ -7,6 +7,8 @@ import { formatDate, today } from '../domain/dates';
 import { downloadCSV, downloadFile } from '../components/exporters';
 import { ConfirmButton, Field, PageHeader, Section, Segmented } from '../components/ui';
 import { Icon } from '../components/Icon';
+import { CloudSettings } from '../components/CloudSettings';
+import { useCloud } from '../store/CloudContext';
 import type { AppData } from '../domain/types';
 
 const BACKUP_KEY = 'our-money-dashboard:last-backup';
@@ -17,6 +19,8 @@ function lastBackup(): string | null {
 
 export default function Settings() {
   const { data, update, replaceAll, notify, storage } = useStore();
+  const cloud = useCloud();
+  const synced = !!cloud.state.householdId;
   const [myName, setMyName] = useState(data.settings.myName);
   const [partnerName, setPartnerName] = useState(data.settings.partnerName);
   const [pending, setPending] = useState<AppData | null>(null);
@@ -55,21 +59,22 @@ export default function Settings() {
 
       <Section title="Where your data lives">
         <div className="space-y-2 text-sm">
-          <p>
-            <b>{storage.kind === 'local' ? 'Saved on this device only' : 'Synced to the cloud'}</b> — {storage.kind === 'local'
-              ? 'your data is stored in this browser (localStorage). It survives refreshes and restarts, but it is NOT synced between your phone, Patrick\'s phone and the computer.'
-              : 'data is stored in your hosted database.'}
-          </p>
-          {storage.kind === 'local' && (
-            <ul className="list-disc space-y-1 pl-5 muted">
-              <li>To move data to another device: <b>Download backup</b> here, then <b>Restore backup</b> on the other device.</li>
-              <li>Clearing Safari website data or deleting the home-screen app can erase it — keep regular backups.</li>
-              <li>Real sync between devices needs a hosted database with login (see the README “Cloud sync” section).</li>
-            </ul>
+          {synced ? (
+            <p><b>Synced to the cloud</b> — saved on this device and in your Supabase household <b>{cloud.state.householdName}</b>. Changes appear on every device signed in to it.</p>
+          ) : (
+            <>
+              <p><b>Saved on this device only</b> — stored in this browser. It survives refreshes, but it is <b>not</b> synced between devices and can be lost if browser data is cleared. Turn on <b>Cloud sync</b> below to fix that.</p>
+              <ul className="list-disc space-y-1 pl-5 muted">
+                <li>Without cloud sync, move data with <b>Download backup</b> → <b>Restore backup</b>.</li>
+                <li>Clearing website data or deleting the home-screen app can erase local data — keep backups.</li>
+              </ul>
+            </>
           )}
-          <p className="text-xs muted">Last backup: {backupAt ? formatDate(backupAt) : 'never'}</p>
+          <p className="text-xs muted">Last backup file: {backupAt ? formatDate(backupAt) : 'never'}{storage.kind === 'local' ? '' : ''}</p>
         </div>
       </Section>
+
+      <CloudSettings />
 
       <Section title="Backup & export">
         <div className="flex flex-wrap gap-2">
@@ -80,7 +85,7 @@ export default function Settings() {
         </div>
         {pending && (
           <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
-            <p>This backup has <b>{pending.transactions.length}</b> transactions, <b>{pending.accounts.length}</b> accounts and <b>{pending.cards.length}</b> cards. Restoring will <b>replace</b> everything currently on this device.</p>
+            <p>This backup has <b>{pending.transactions.length}</b> transactions, <b>{pending.accounts.length}</b> accounts and <b>{pending.cards.length}</b> cards. Restoring will <b>replace</b> everything currently on this device{synced ? ' and in the cloud household' : ''}.</p>
             <div className="mt-2 flex gap-2">
               <button className="btn-primary" onClick={() => { replaceAll(pending); setPending(null); notify('Backup restored'); }}>Replace with backup</button>
               <button className="btn-secondary" onClick={() => setPending(null)}>Cancel</button>
@@ -130,7 +135,7 @@ export default function Settings() {
       </Section>
 
       <Section title="Danger zone">
-        <p className="mb-2 text-sm muted">Erase everything on this device. Download a backup first.</p>
+        <p className="mb-2 text-sm muted">{synced ? '⚠️ Cloud sync is on: erasing here also erases the household for Patrick. Download a backup first.' : 'Erase everything on this device. Download a backup first.'}</p>
         <ConfirmButton label="Erase all data" confirmLabel="Tap again to erase everything" onConfirm={() => { replaceAll(emptyData()); notify('All data erased'); }} />
       </Section>
 

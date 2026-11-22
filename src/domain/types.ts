@@ -139,4 +139,5 @@ export interface AppData {
   goals: Goal[];
   purchases: PlannedPurchase[];
   settings: Settings;
+  deletedIds?: string[]; // tombstones so a deletion isn't undone by syncing with the other device
 }

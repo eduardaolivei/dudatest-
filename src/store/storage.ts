@@ -41,6 +41,7 @@ export function normalize(raw: unknown): AppData {
     goals: r.goals ?? [],
     purchases: r.purchases ?? [],
     settings: { ...base.settings, ...(r.settings ?? {}), budgets: { ...(r.settings?.budgets ?? {}) } },
+    deletedIds: Array.isArray(r.deletedIds) ? r.deletedIds.filter((x) => typeof x === 'string') : [],
   };
 }
 

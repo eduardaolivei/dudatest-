@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { CloudBadge } from './CloudSettings';
 import { useStore } from '../store/StoreContext';
 import { addMonths, monthKey, monthLabel, today } from '../domain/dates';
 import type { PersonFilter } from '../domain/types';
@@ -49,6 +50,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const toggleTheme = () => update((d) => ({ ...d, settings: { ...d.settings, theme: isDark ? 'light' : 'dark' } }), isDark ? '☀️ Day mode' : '🌙 Night mode');
   const [searchOpen, setSearchOpen] = useState(false);
   const loc = useLocation();
+  const navigate = useNavigate();
   const moreActive = MORE.some((m) => loc.pathname.startsWith(m.to)) || loc.pathname === '/more';
   const isCurrentMonth = monthKey(month) === monthKey(today());
 
@@ -97,6 +99,7 @@ export function Layout({ children }: { children: ReactNode }) {
             </select>
             {!isCurrentMonth && <button className="text-xs font-medium text-brand-600" onClick={() => setMonth(today())}>Today</button>}
             <div className="flex-1" />
+            <CloudBadge onClick={() => navigate('/settings')} />
             <button className="btn-secondary px-2.5" onClick={toggleTheme} aria-label={isDark ? 'Switch to day mode' : 'Switch to night mode'} title={isDark ? 'Day mode' : 'Night mode'}>
               <Icon name={isDark ? 'sun' : 'moon'} className="h-4 w-4" />
             </button>

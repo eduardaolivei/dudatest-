@@ -1,6 +1,7 @@
 import { Suspense, lazy } from 'react';
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { StoreProvider } from './store/StoreContext';
+import { CloudProvider } from './store/CloudContext';
 import { Layout } from './components/Layout';
 import Dashboard from './pages/Dashboard';
 
@@ -22,6 +23,7 @@ const More = lazy(() => import('./pages/More'));
 export default function App() {
   return (
     <StoreProvider>
+      <CloudProvider>
       <HashRouter>
         <Layout>
           <Suspense fallback={<div className="py-10 text-center text-sm muted">Loading…</div>}>
@@ -45,6 +47,7 @@ export default function App() {
           </Suspense>
         </Layout>
       </HashRouter>
+      </CloudProvider>
     </StoreProvider>
   );
 }

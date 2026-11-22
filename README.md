@@ -12,6 +12,7 @@ npm run dev        # development server → http://localhost:5173
 npm test           # 25 unit tests for the financial calculations
 npm run build      # type-check + production build into dist/
 npm run e2e        # browser test of the main flows (needs `npm run build` first)
+npm run e2e:cloud  # two-browser cloud sync test against a fake Supabase API
 npm run preview    # serve the production build → http://localhost:4173
 ```
 
@@ -48,28 +49,19 @@ Expense, Income, Bill, Card purchase, Card payment and Transfer.
   and never counted until you confirm it was received.**
 - Recurring items never pay themselves: each occurrence waits for you to tap *Paid* / *Received*.
 
-## Data storage — please read
+## Data storage & cloud sync
 
-The current version stores data **in the browser on each device** (`localStorage`).
-It survives refreshes and restarts, but it is **not synced** between phones and computers.
-
-- Move data between devices with **Settings → Download backup / Restore backup**.
-- Clearing Safari website data or deleting the home-screen app can erase local data.
-  Download a backup regularly.
-
-### Cloud sync (next step)
-
-To share the same data on both phones and the computer, the app needs a hosted
-database with login. The code is ready for this: everything goes through the
-`StorageAdapter` interface in `src/store/storage.ts`. The recommended plan:
-
-1. Create a free **Supabase** project (Postgres + authentication, Sydney region available).
-2. Enable email login. Create one *household* that both of you belong to, with
-   row-level security so only household members can read or write its rows.
-3. Implement a `cloudAdapter` with the same `load`/`save` methods, which you sign into on both devices.
-4. Host the built `dist/` folder on Vercel or Netlify (HTTPS is required for the PWA).
-
-This needs your own Supabase account and keys, which is why it isn't switched on here.
+- **Always:** data is saved in the browser on each device (works offline).
+- **Optional cloud sync (Supabase):** Settings → Cloud sync. Each person signs in with
+  email + password; both join one *household* via an invite code. Changes upload
+  automatically, arrive on the other device (realtime + periodic check), and
+  simultaneous edits are merged record by record (deletions are remembered).
+- Setup guide (Portuguese): [`docs/SUPABASE.md`](docs/SUPABASE.md). Database script:
+  [`supabase/setup.sql`](supabase/setup.sql) — Row Level Security means only
+  household members can read their data; all writes go through checked functions.
+- For hosting (e.g. Vercel) set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`
+  so devices don't need to paste them.
+- Without cloud sync, use **Download backup / Restore backup** to move data.
 
 ## Install on iPhone
 
