@@ -149,7 +149,21 @@ const money = async (page, label) => (await page.locator('.card', { hasText: lab
     const sw = await page.evaluate(async () => { const r = await navigator.serviceWorker.getRegistration(); return !!r; });
     check('service worker registered', sw);
 
-    // 12. Every page renders without crashing
+    // 12. Budgets save automatically (no Save button needed)
+    await page.goto(URL + '#/budgets');
+    const g = page.getByLabel('Groceries budget');
+    await g.fill('600');
+    await g.press('Enter');
+    await page.getByLabel('Housing budget').fill('2500');
+    await page.getByLabel('Groceries budget').click(); // tap elsewhere -> saves Housing
+    await page.reload();
+    check('budgets auto-save and persist', (await page.getByLabel('Groceries budget').inputValue()) === '600.00' && (await page.getByLabel('Housing budget').inputValue()) === '2500.00');
+    await page.getByLabel('Housing budget').fill('');
+    await page.getByLabel('Housing budget').press('Enter');
+    await page.reload();
+    check('clearing a budget removes it', (await page.getByLabel('Housing budget').inputValue()) === '');
+
+    // 13. Every page renders without crashing
     for (const r of ['transactions', 'bills', 'cards', 'goals', 'budgets', 'planner', 'week', 'reports', 'assistant', 'recurring', 'more']) {
       await page.goto(URL + '#/' + r);
       await page.waitForTimeout(150);
