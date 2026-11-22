@@ -173,7 +173,7 @@ export function TransactionForm({ mode: initialMode, initial, onDone, presetCard
         status: st,
         accountId: isCard ? undefined : source.slice(4) || undefined,
         cardId: isCard ? source.slice(5) : undefined,
-        paymentMethod: paymentMethod || (isCard ? 'Credit card' : undefined),
+        paymentMethod: paymentMethod || (isCard ? 'Credit card' : mode === 'expense' ? (data.accounts.find((a) => a.id === source.slice(4))?.type === 'cash' ? 'Cash' : 'Debit card') : undefined),
       };
     }
 
@@ -192,12 +192,12 @@ export function TransactionForm({ mode: initialMode, initial, onDone, presetCard
       <select className="input" value={source} onChange={(e) => setSource(e.target.value)}>
         {bankAccounts.length === 0 && data.cards.length === 0 && <option value="">— add an account first —</option>}
         {bankAccounts.length > 0 && (
-          <optgroup label="Bank / cash">
-            {bankAccounts.map((a) => <option key={a.id} value={`acc:${a.id}`}>{a.name}</option>)}
+          <optgroup label="Bank account / debit card / cash">
+            {bankAccounts.map((a) => <option key={a.id} value={`acc:${a.id}`}>{a.name}{a.type === 'cash' ? '' : ' (debit)'}</option>)}
           </optgroup>
         )}
         {data.cards.length > 0 && (
-          <optgroup label="Credit card">
+          <optgroup label="Credit card (pay later)">
             {data.cards.map((c) => <option key={c.id} value={`card:${c.id}`}>{c.name}</option>)}
           </optgroup>
         )}

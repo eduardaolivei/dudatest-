@@ -91,7 +91,8 @@ const money = async (page, label) => (await page.locator('.card', { hasText: lab
 
     // 8. Credit card: purchase + payment must count spending ONCE
     await page.goto(URL + '#/cards');
-    await page.getByRole('button', { name: '+ Add card' }).click();
+    await page.getByRole('button', { name: '+ Add credit card' }).click();
+    check('debit card guidance shown on Cards', await has(page, "Debit cards don't go here."));
     await page.getByPlaceholder('e.g. Low Rate Visa').fill('Test Visa');
     await page.getByLabel('Credit limit').fill('5000');
     await page.getByRole('button', { name: 'Save' }).click();

@@ -27,6 +27,7 @@ export default function Accounts() {
         }
       />
       <p className="mb-4 rounded-xl bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+        💳 Your <b>debit card</b> belongs here: it spends from this account. Credit cards go under Cards.<br />
         🔒 Never store account numbers, BSBs, card numbers or passwords here. A nickname is all the app needs.
       </p>
       {data.accounts.length === 0 ? (

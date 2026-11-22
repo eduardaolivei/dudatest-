@@ -1,4 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { useStore } from '../store/StoreContext';
 import type { Card, Person } from '../domain/types';
 import { cardStatement, matchPerson, type CardStatement } from '../domain/finance';
@@ -32,7 +33,15 @@ export default function Cards() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Credit Cards" subtitle="Credit limit is not our money. Track what we owe and when it's due." actions={<button className="btn-primary" onClick={() => setAction({ type: 'edit' })}>+ Add card</button>} />
+      <PageHeader title="Credit Cards" subtitle="Credit limit is not our money. Track what we owe and when it's due." actions={<button className="btn-primary" onClick={() => setAction({ type: 'edit' })}>+ Add credit card</button>} />
+
+      <div className="flex items-start gap-2 rounded-xl bg-sky-50 p-3 text-sm text-sky-800 dark:bg-sky-950/40 dark:text-sky-200">
+        <Icon name="bank" className="mt-0.5 h-4 w-4 shrink-0" />
+        <p>
+          <b>Debit cards don't go here.</b> A debit card spends straight from your bank account, so there's no limit or bill to pay.
+          Add the bank account under <Link to="/accounts" className="font-semibold underline">Accounts</Link>, then choose that account in “Paid with” when you buy something with the debit card.
+        </p>
+      </div>
 
       {cards.length > 0 && (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -106,7 +115,7 @@ export default function Cards() {
         )}
       </Modal>
 
-      <Modal open={action?.type === 'edit'} onClose={() => setAction(null)} title={action?.type === 'edit' && action.card ? 'Edit card' : 'Add card'}>
+      <Modal open={action?.type === 'edit'} onClose={() => setAction(null)} title={action?.type === 'edit' && action.card ? 'Edit credit card' : 'Add credit card'}>
         {action?.type === 'edit' && (
           <CardForm
             initial={action.card}
@@ -226,6 +235,7 @@ function CardForm({ initial, onSave, onDelete, inUse }: { initial?: Card; onSave
           </select>
         </Field>
       </div>
+      <p className="text-xs muted">Only credit cards here (they have a limit and a bill). Debit cards are just your bank account — add it under Accounts.</p>
       <p className="text-xs muted">🔒 Never store the card number, CVV or PIN. A nickname is enough.</p>
       <div className="flex gap-2">
         <button className="btn-primary flex-1">Save</button>
