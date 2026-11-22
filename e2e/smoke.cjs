@@ -165,6 +165,25 @@ const money = async (page, label) => (await page.locator('.card', { hasText: lab
     check('budget follows salary cycle', (await has(page, 'fortnightly budget')) && (await has(page, /days? left|Last day/)));
     check('limit converted monthly -> fortnightly', await has(page, 'of $208.00'));
 
+    // 12b. Add more budgets: a subcategory and a brand-new subcategory
+    await page.getByRole('button', { name: 'Add budget' }).click();
+    await page.getByLabel('Budget for').selectOption('Coffee');
+    await page.getByLabel('Limit amount').fill('40');
+    await page.getByRole('button', { name: 'Save budget' }).click();
+    check('subcategory budget added', await has(page, 'of $40.00'));
+    await page.getByRole('button', { name: 'Add budget' }).click();
+    await page.getByLabel('Budget for').selectOption('__new__');
+    await page.getByPlaceholder('e.g. Uber Eats, Purify supplies, Gym').fill('Uber Eats');
+    await page.getByLabel('Limit amount').fill('50');
+    await page.getByRole('button', { name: 'Save budget' }).click();
+    check('custom subcategory budget added', await has(page, 'Uber Eats'));
+    await page.getByRole('button', { name: 'Add transaction' }).click();
+    await page.getByLabel('Amount').fill('22');
+    await page.getByPlaceholder('e.g. Woolworths').fill('Dinner delivery');
+    await page.locator('select').filter({ hasText: 'Uber Eats' }).selectOption('Uber Eats');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    check('spending counts against custom budget', await has(page, '$28.00 left'));
+
     // 13. Every page renders without crashing
     for (const r of ['transactions', 'bills', 'cards', 'goals', 'budgets', 'planner', 'week', 'reports', 'assistant', 'recurring', 'more']) {
       await page.goto(URL + '#/' + r);

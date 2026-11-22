@@ -4,7 +4,7 @@ import type { Person, RecurringRule } from '../domain/types';
 import { matchPerson, pendingOccurrences } from '../domain/finance';
 import { addDays, formatDate, monthlyFactor, today } from '../domain/dates';
 import { centsToInput, formatMoney, parseMoney, sum } from '../domain/money';
-import { EXPENSE_CATEGORIES, INCOME_SOURCES, categoryNames } from '../domain/categories';
+import { INCOME_SOURCES, categoryNames, subcategoriesFor } from '../domain/categories';
 import { remove, skipOccurrence, upsert } from '../store/actions';
 import { Badge, ConfirmButton, Empty, Field, Modal, Money, PageHeader, Section } from '../components/ui';
 import { SettleDialog, type SettleTarget } from '../components/SettleDialog';
@@ -188,7 +188,7 @@ function RuleForm({ rule, onSave, onDelete }: { rule: RecurringRule; onSave: (r:
             <Field label="Subcategory">
               <select className="input" value={f.subcategory ?? ''} onChange={(e) => set('subcategory', e.target.value || undefined)}>
                 <option value="">—</option>
-                {(EXPENSE_CATEGORIES[f.category] ?? []).map((s) => <option key={s}>{s}</option>)}
+                {subcategoriesFor(f.category, data.settings.customSubcategories).map((s) => <option key={s}>{s}</option>)}
               </select>
             </Field>
           </>

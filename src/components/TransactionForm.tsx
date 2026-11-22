@@ -2,7 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore, type QuickAddMode } from '../store/StoreContext';
 import type { Frequency, Person, RecurringRule, Transaction, TxKind } from '../domain/types';
-import { EXPENSE_CATEGORIES, INCOME_SOURCES, PAYMENT_METHODS, categoryNames } from '../domain/categories';
+import { EXPENSE_CATEGORIES, INCOME_SOURCES, PAYMENT_METHODS, categoryNames, subcategoriesFor } from '../domain/categories';
 import { centsToInput, formatMoney, parseMoney } from '../domain/money';
 import { today } from '../domain/dates';
 import { cardStatement } from '../domain/finance';
@@ -186,7 +186,7 @@ export function TransactionForm({ mode: initialMode, initial, onDone, presetCard
     onDone();
   }
 
-  const subcats = EXPENSE_CATEGORIES[category] ?? [];
+  const subcats = subcategoriesFor(category, data.settings.customSubcategories);
   const sourceSelect = (
     <Field label={mode === 'bill' ? 'Pay from' : 'Paid with'} error={errors.source}>
       <select className="input" value={source} onChange={(e) => setSource(e.target.value)}>

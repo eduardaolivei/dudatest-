@@ -127,6 +127,7 @@ export interface Settings {
   theme: 'light' | 'dark' | 'system';
   budgets: Record<string, Cents>; // budget per category group, PER CYCLE (see budgetCycle)
   budgetCycle?: BudgetCycle;
+  customSubcategories?: Record<string, string[]>; // our own subcategories, per category
 }
 
 export interface AppData {

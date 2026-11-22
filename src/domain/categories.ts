@@ -24,3 +24,18 @@ export const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export const categoryNames = Object.keys(EXPENSE_CATEGORIES);
+
+/** Budget keys: "Groceries" (whole category) or "Groceries › Coffee" (one subcategory). */
+export const SUB_SEP = ' › ';
+export const budgetKey = (category: string, sub?: string) => (sub ? `${category}${SUB_SEP}${sub}` : category);
+export function parseBudgetKey(key: string): { category: string; subcategory?: string } {
+  const i = key.indexOf(SUB_SEP);
+  return i === -1 ? { category: key } : { category: key.slice(0, i), subcategory: key.slice(i + SUB_SEP.length) };
+}
+
+/** Built-in subcategories plus the ones we created ourselves. */
+export function subcategoriesFor(category: string, custom?: Record<string, string[]>): string[] {
+  const base = EXPENSE_CATEGORIES[category] ?? [];
+  const extra = (custom?.[category] ?? []).filter((s) => !base.includes(s));
+  return [...base, ...extra];
+}

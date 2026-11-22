@@ -48,3 +48,22 @@ describe('budget cycles', () => {
     expect(convertBudgets({ Groceries: 15000 }, 'weekly', 'fortnightly')).toEqual({ Groceries: 30000 });
   });
 });
+
+describe('subcategory budgets', () => {
+  it('tracks subcategory spending and avoids double counting totals', () => {
+    const d = emptyData();
+    d.transactions.push(newTx({ kind: 'expense', amount: 1500, description: 'flat white', date: '2026-11-20', category: 'Groceries', subcategory: 'Coffee', person: 'me' }));
+    d.transactions.push(newTx({ kind: 'expense', amount: 9000, description: 'coles', date: '2026-11-20', category: 'Groceries', subcategory: 'Supermarket', person: 'joint' }));
+    d.transactions.push(newTx({ kind: 'card_purchase', amount: 3000, description: 'ubereats', date: '2026-11-21', category: 'Groceries', subcategory: 'Uber Eats', person: 'joint', cardId: 'x' }));
+    const r = { start: '2026-11-01', end: '2026-11-30' };
+    d.settings.budgets = { 'Groceries › Coffee': 4000, 'Groceries › Uber Eats': 5000 };
+    let st = budgetStatus(d, r);
+    expect(st.rows.find((x) => x.key === 'Groceries › Coffee')).toMatchObject({ label: 'Coffee', spent: 1500, remaining: 2500 });
+    expect(st.rows.find((x) => x.label === 'Uber Eats')!.spent).toBe(3000);
+    expect(st.totalBudget).toBe(9000); // no category budget -> sub budgets count
+    d.settings.budgets['Groceries'] = 20000;
+    st = budgetStatus(d, r);
+    expect(st.totalBudget).toBe(20000); // category budget already contains its subs
+    expect(st.totalSpent).toBe(13500);
+  });
+});

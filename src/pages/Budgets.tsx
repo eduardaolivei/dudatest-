@@ -1,10 +1,10 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { useStore } from '../store/StoreContext';
 import type { BudgetCycle } from '../domain/types';
-import { budgetPeriod, budgetStatus, convertBudgets, effectiveCycle, spendingByCategory } from '../domain/finance';
+import { budgetPeriod, budgetStatus, convertBudgets, effectiveCycle, spendingByCategory, type BudgetRow } from '../domain/finance';
 import { formatDate, today, weekdayName } from '../domain/dates';
 import { centsToInput, formatMoney, parseMoney } from '../domain/money';
-import { categoryNames } from '../domain/categories';
+import { budgetKey, categoryNames, parseBudgetKey, subcategoriesFor } from '../domain/categories';
 import { ConfirmButton, Field, Modal, Money, PageHeader, Progress, Section, Segmented, Stat } from '../components/ui';
 import { Icon } from '../components/Icon';
 
@@ -16,6 +16,7 @@ export default function Budgets() {
   const [offset, setOffset] = useState(0);
   const [editing, setEditing] = useState<string | null>(null);
   const [cycleOpen, setCycleOpen] = useState(false);
+  const [adding, setAdding] = useState(false);
 
   const cycle = effectiveCycle(data);
   const period = useMemo(() => budgetPeriod(data, ref, offset), [data, ref, offset]);
@@ -23,6 +24,8 @@ export default function Budgets() {
   const spent = spendingByCategory(data, period, person);
   const isCurrent = offset === 0;
   const unit = CYCLE_LABEL[cycle.frequency];
+  const rowsByKey = new Map(status.rows.map((r) => [r.key, r]));
+  const pace = isCurrent ? period.dayNumber / period.totalDays : 0;
   const linkedIncome = cycle.incomeRuleId ? data.recurring.find((r) => r.id === cycle.incomeRuleId) : undefined;
 
   return (
@@ -61,50 +64,47 @@ export default function Budgets() {
         <Stat label="Per day until payday" value={isCurrent && period.daysLeft > 0 ? Math.max(0, Math.floor(status.remaining / period.daysLeft)) : 0} icon="calendar" hint={isCurrent ? `${period.daysLeft} day${period.daysLeft === 1 ? '' : 's'} left` : 'Current cycle only'} />
       </div>
 
-      <Section title="Category limits">
-        {status.totalBudget === 0 && (
+      <Section title="Budgets" action={<button className="btn-primary text-xs" onClick={() => setAdding(true)}><Icon name="plus" className="h-3.5 w-3.5" />Add budget</button>}>
+        {status.rows.length === 0 && (
           <p className="mb-3 rounded-xl bg-brand-50 p-2.5 text-sm text-brand-700 dark:bg-brand-600/15 dark:text-brand-100">
-            Tap <b>Set limit</b> next to a category to choose how much you can spend on it each {unit}.
+            Tap <b>Set limit</b> on a category, or <b>+ Add budget</b> for something more specific like Coffee, Food Delivery or a new item of your own.
           </p>
         )}
         <ul className="divide-y divide-slate-100 dark:divide-slate-800">
           {categoryNames.map((c) => {
-            const budget = data.settings.budgets[c] ?? 0;
-            const s = spent[c] ?? 0;
-            const ratio = budget ? s / budget : 0;
-            const pace = isCurrent && budget ? period.dayNumber / period.totalDays : 0;
+            const catRow = rowsByKey.get(c);
+            const subRows = status.rows.filter((r) => r.category === c && r.subcategory);
             return (
               <li key={c} className="py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="font-medium">{c}</div>
-                    <div className="text-xs muted">
-                      <Money cents={s} /> spent{budget ? <> of <Money cents={budget} /></> : ' · no limit'}
-                    </div>
-                  </div>
-                  <button className={budget ? 'btn-secondary text-xs' : 'btn-primary text-xs'} onClick={() => setEditing(c)} aria-label={`${budget ? 'Edit' : 'Set'} ${c} limit`}>
-                    {budget ? <><Icon name="edit" className="h-3.5 w-3.5" />Edit</> : <><Icon name="plus" className="h-3.5 w-3.5" />Set limit</>}
-                  </button>
-                </div>
-                {budget > 0 && (
-                  <>
-                    <div className="mt-2"><Progress value={ratio} tone={ratio > 1 ? 'bad' : ratio > Math.max(0.85, pace + 0.15) ? 'warn' : 'good'} /></div>
-                    <div className={`mt-1 text-xs ${ratio > 1 ? 'font-medium text-red-600' : 'muted'}`}>
-                      {ratio > 1 ? <>Over by <Money cents={s - budget} /></> : <><Money cents={budget - s} /> left</>}
-                      {isCurrent && ratio <= 1 && ratio > pace + 0.15 && ' · spending faster than the days are passing'}
-                    </div>
-                  </>
+                <BudgetLine
+                  label={c}
+                  row={catRow}
+                  spentIfNone={spent[c] ?? 0}
+                  pace={pace}
+                  onEdit={() => setEditing(c)}
+                />
+                {subRows.length > 0 && (
+                  <ul className="mt-2 space-y-2 border-l-2 border-slate-100 pl-3 dark:border-slate-800">
+                    {subRows.map((r) => (
+                      <li key={r.key}>
+                        <BudgetLine label={r.label} row={r} spentIfNone={0} pace={pace} onEdit={() => setEditing(r.key)} small />
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </li>
             );
           })}
         </ul>
+        {status.rows.some((r) => r.subcategory && rowsByKey.has(r.category)) && (
+          <p className="mt-2 text-xs muted">Subcategory limits sit inside their category's limit, so they're not added to the totals twice.</p>
+        )}
       </Section>
 
-      <Modal open={!!editing} onClose={() => setEditing(null)} title={editing ? `${editing} limit` : ''}>
+      <Modal open={!!editing} onClose={() => setEditing(null)} title={editing ? `${parseBudgetKey(editing).subcategory ?? editing} limit` : ''}>
         {editing && (
           <LimitForm
-            category={editing}
+            category={parseBudgetKey(editing).subcategory ?? editing}
             unit={unit}
             initial={data.settings.budgets[editing] ?? 0}
             onSave={(cents) => {
@@ -113,8 +113,24 @@ export default function Budgets() {
                 if (cents > 0) budgets[editing] = cents;
                 else delete budgets[editing];
                 return { ...d, settings: { ...d.settings, budgets } };
-              }, cents > 0 ? `${editing}: ${formatMoney(cents)} per ${unit}` : `${editing} limit removed`);
+              }, cents > 0 ? `${parseBudgetKey(editing).subcategory ?? editing}: ${formatMoney(cents)} per ${unit}` : `${parseBudgetKey(editing).subcategory ?? editing} limit removed`);
               setEditing(null);
+            }}
+          />
+        )}
+      </Modal>
+
+      <Modal open={adding} onClose={() => setAdding(false)} title="Add budget">
+        {adding && (
+          <AddBudgetForm
+            unit={unit}
+            onSave={(category, sub, newSub, cents) => {
+              update((d) => {
+                const custom = { ...(d.settings.customSubcategories ?? {}) };
+                if (newSub) custom[category] = [...(custom[category] ?? []), newSub];
+                return { ...d, settings: { ...d.settings, customSubcategories: custom, budgets: { ...d.settings.budgets, [budgetKey(category, sub)]: cents } } };
+              }, `${sub ?? category}: ${formatMoney(cents)} per ${unit}`);
+              setAdding(false);
             }}
           />
         )}
@@ -210,6 +226,95 @@ function CycleForm({ current, onSave }: { current: BudgetCycle; onSave: (c: Budg
       )}
       <p className="rounded-xl bg-slate-50 p-2.5 text-xs muted dark:bg-slate-800/60">If you switch between weekly, fortnightly and monthly, existing limits are converted automatically (e.g. $600/month ≈ $138/week).</p>
       <button className="btn-primary w-full py-3">Save cycle</button>
+    </form>
+  );
+}
+
+function BudgetLine({ label, row, spentIfNone, pace, onEdit, small }: { label: string; row?: BudgetRow; spentIfNone: number; pace: number; onEdit: () => void; small?: boolean }) {
+  const budget = row?.budget ?? 0;
+  const s = row ? row.spent : spentIfNone;
+  const ratio = budget ? s / budget : 0;
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className={small ? 'text-sm font-medium' : 'font-medium'}>{label}</div>
+          <div className="text-xs muted"><Money cents={s} /> spent{budget ? <> of <Money cents={budget} /></> : ' · no limit'}</div>
+        </div>
+        <button className={budget ? 'btn-secondary text-xs' : 'btn-primary text-xs'} onClick={onEdit} aria-label={`${budget ? 'Edit' : 'Set'} ${label} limit`}>
+          {budget ? <><Icon name="edit" className="h-3.5 w-3.5" />Edit</> : <><Icon name="plus" className="h-3.5 w-3.5" />Set limit</>}
+        </button>
+      </div>
+      {budget > 0 && (
+        <>
+          <div className="mt-2"><Progress value={ratio} tone={ratio > 1 ? 'bad' : ratio > Math.max(0.85, pace + 0.15) ? 'warn' : 'good'} /></div>
+          <div className={`mt-1 text-xs ${ratio > 1 ? 'font-medium text-red-600' : 'muted'}`}>
+            {ratio > 1 ? <>Over by <Money cents={s - budget} /></> : <><Money cents={budget - s} /> left</>}
+            {pace > 0 && ratio <= 1 && ratio > pace + 0.15 && ' · spending faster than the days are passing'}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+const NEW_SUB = '__new__';
+
+function AddBudgetForm({ unit, onSave }: { unit: string; onSave: (category: string, sub: string | undefined, newSub: string | undefined, cents: number) => void }) {
+  const { data } = useStore();
+  const [category, setCategory] = useState('Groceries');
+  const [sub, setSub] = useState('');
+  const [newSub, setNewSub] = useState('');
+  const [amount, setAmount] = useState('');
+  const [err, setErr] = useState('');
+  const subs = subcategoriesFor(category, data.settings.customSubcategories);
+
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    const cents = parseMoney(amount);
+    let chosen: string | undefined = sub || undefined;
+    let created: string | undefined;
+    if (sub === NEW_SUB) {
+      const name = newSub.trim();
+      if (!name) return setErr('Type a name for the new subcategory');
+      if (name.includes('›')) return setErr('Please don’t use the › character');
+      chosen = subs.find((x) => x.toLowerCase() === name.toLowerCase()) ?? name;
+      if (!subs.includes(chosen)) created = chosen;
+    }
+    if (cents === null || cents <= 0) return setErr('Type an amount greater than $0, e.g. 50');
+    onSave(category, chosen, created, cents);
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-3" noValidate>
+      {err && <p className="text-sm text-red-600" role="alert">{err}</p>}
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Category">
+          <select className="input" value={category} onChange={(e) => { setCategory(e.target.value); setSub(''); }}>
+            {categoryNames.map((c) => <option key={c}>{c}</option>)}
+          </select>
+        </Field>
+        <Field label="Budget for">
+          <select className="input" value={sub} onChange={(e) => setSub(e.target.value)} aria-label="Budget for">
+            <option value="">Whole category</option>
+            {subs.map((x) => <option key={x} value={x}>{x}</option>)}
+            <option value={NEW_SUB}>+ New subcategory…</option>
+          </select>
+        </Field>
+      </div>
+      {sub === NEW_SUB && (
+        <Field label="New subcategory name">
+          <input autoFocus className="input" value={newSub} onChange={(e) => setNewSub(e.target.value)} placeholder="e.g. Uber Eats, Purify supplies, Gym" />
+        </Field>
+      )}
+      <Field label={`Limit per ${unit}`}>
+        <div className="relative">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-lg muted">$</span>
+          <input inputMode="decimal" className="input pl-7 text-2xl font-semibold" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} aria-label="Limit amount" />
+        </div>
+      </Field>
+      {sub === NEW_SUB && <p className="text-xs muted">The new subcategory will also appear when you add expenses, so spending can be tracked against it.</p>}
+      <button type="submit" className="btn-primary w-full py-3">Save budget</button>
     </form>
   );
 }

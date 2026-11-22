@@ -180,8 +180,8 @@ export function alerts(data: AppData, ref: ISODate, f: PersonFilter = 'all'): Al
   const bp = budgetPeriod(data, ref);
   const cycleWord = { weekly: 'week', fortnightly: 'fortnight', monthly: 'month' }[bp.frequency];
   for (const r of budgetStatus(data, bp, f).rows) {
-    if (r.spent > r.budget) out.push({ level: 'warning', text: `${r.category} is over budget by ${$(r.spent - r.budget)} this ${cycleWord}.` });
-    else if (r.spent > r.budget * 0.85) out.push({ level: 'info', text: `${r.category} has used ${Math.round((r.spent / r.budget) * 100)}% of its budget.` });
+    if (r.spent > r.budget) out.push({ level: 'warning', text: `${r.label} is over budget by ${$(r.spent - r.budget)} this ${cycleWord}.` });
+    else if (r.spent > r.budget * 0.85) out.push({ level: 'info', text: `${r.label} has used ${Math.round((r.spent / r.budget) * 100)}% of its budget.` });
   }
   for (const c of data.cards.filter((c) => matchPerson(c.owner, f))) {
     const s = cardStatement(c, data.transactions, ref);

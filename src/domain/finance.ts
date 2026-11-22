@@ -25,6 +25,7 @@ import {
   toISO,
 } from './dates';
 import { sum } from './money';
+import { parseBudgetKey } from './categories';
 
 // ---------------------------------------------------------------------------
 // Basic rules
@@ -529,14 +530,35 @@ export function convertBudgets(budgets: Record<string, Cents>, from: BudgetCycle
   return out;
 }
 
+export interface BudgetRow {
+  key: string;
+  label: string;
+  category: string;
+  subcategory?: string;
+  budget: Cents;
+  spent: Cents;
+  remaining: Cents;
+}
+
+/**
+ * Budget vs spending. A budget can be for a whole category or one subcategory.
+ * Totals avoid double counting: a subcategory budget is only added to the totals
+ * when its parent category has no budget of its own.
+ */
 export function budgetStatus(data: AppData, r: Range, f: PersonFilter = 'all') {
-  const spent = spendingByCategory(data, r, f);
-  const rows = Object.entries(data.settings.budgets)
+  const byCat = spendingByCategory(data, r, f);
+  const bySub = spendingBySubcategory(data, r, f);
+  const rows: BudgetRow[] = Object.entries(data.settings.budgets)
     .filter(([, b]) => b > 0)
-    .map(([category, budget]) => ({ category, budget, spent: spent[category] ?? 0, remaining: budget - (spent[category] ?? 0) }));
-  const totalBudget = sum(rows.map((r) => r.budget));
-  const totalSpentBudgeted = sum(rows.map((r) => r.spent));
-  return { rows, totalBudget, totalSpent: totalSpentBudgeted, remaining: totalBudget - totalSpentBudgeted };
+    .map(([key, budget]) => {
+      const { category, subcategory } = parseBudgetKey(key);
+      const spent = subcategory ? sum(bySub.filter((x) => x.category === category && x.subcategory === subcategory).map((x) => x.amount)) : byCat[category] ?? 0;
+      return { key, label: subcategory ?? category, category, subcategory, budget, spent, remaining: budget - spent };
+    });
+  const counted = rows.filter((row) => !row.subcategory || !(data.settings.budgets[row.category] > 0));
+  const totalBudget = sum(counted.map((x) => x.budget));
+  const totalSpent = sum(counted.map((x) => x.spent));
+  return { rows, totalBudget, totalSpent, remaining: totalBudget - totalSpent };
 }
 
 /** Who paid for joint costs: joint expenses by funding account/card owner + transfers into joint accounts. */
