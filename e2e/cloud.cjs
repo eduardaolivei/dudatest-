@@ -65,7 +65,7 @@ async function handle(route) {
       const h = mine.find((x) => x.id === body.p_id);
       if (!h) return json(400, { code: 'P0001', message: 'Not a member of this household' });
       if (h.version !== body.p_expected_version) return json(200, -1);
-      h.data = body.p_data; h.version++;
+      h.data = body.p_data; h.version++; h.updatedAt = Date.now();
       return json(200, h.version);
     }
     if (p === '/rest/v1/households') {
@@ -73,7 +73,8 @@ async function handle(route) {
       let rows = mine;
       if (idf) rows = rows.filter((h) => h.id === idf.replace('eq.', ''));
       const sel = (url.searchParams.get('select') || '').split(',');
-      const out = rows.map((h) => Object.fromEntries(sel.map((k) => [k, row(h)[k]])));
+      const field = (h, k) => (k === 'household_members(count)' ? ['household_members', [{ count: h.members.length }]] : k === 'updated_at' ? [k, h.updatedAt || 0] : [k, row(h)[k]]);
+      const out = rows.map((h) => Object.fromEntries(sel.map((k) => field(h, k))));
       const single = (req.headers()['accept'] || '').includes('vnd.pgrst.object');
       if (single) return out.length === 1 ? json(200, out[0]) : json(406, { code: 'PGRST116', message: 'no rows' });
       return json(200, out);
@@ -193,6 +194,39 @@ async function setupCloud(page, email, mode) {
     check('new device auto-connects to household', await has(laptop.page, 'Invite code — share it with your partner'));
     await laptop.page.goto(APP + '#/transactions');
     check('new device has all data', await has(laptop.page, 'Fuel by Patrick'));
+
+    // Mistake: a person taps Create instead of Join, then fixes it with the partner's code
+    const oops = await browserFor(browser);
+    await setupCloud(oops.page, 'oops@example.com');
+    check('Join is offered first', await has(oops.page, 'Joining your partner? Use their invite code'));
+    await oops.page.getByRole('button', { name: 'Create', exact: true }).click();
+    check('created a separate household by mistake', await has(oops.page, 'Invite code — share it with your partner'));
+    const wrongCode = (await oops.page.locator('.font-mono.text-lg').innerText()).trim();
+    check('it is a different household', wrongCode !== code, `${wrongCode} vs ${code}`);
+    await oops.page.getByRole('button', { name: /Join a different household/ }).click();
+    await oops.page.getByLabel('Partner invite code').fill(code);
+    await oops.page.getByRole('button', { name: 'Join', exact: true }).click();
+    await oops.page.waitForTimeout(500);
+    if (await oops.page.getByRole('button', { name: 'Combine both (recommended)' }).count()) await oops.page.getByRole('button', { name: 'Combine both (recommended)' }).click();
+    await oops.page.waitForTimeout(800);
+    const nowCode = (await oops.page.locator('.font-mono.text-lg').innerText()).trim();
+    check('switched to the shared household', nowCode === code, nowCode);
+    await oops.page.goto(APP + '#/transactions');
+    check('sees the shared data after switching', await has(oops.page, 'Fuel by Patrick', 8000));
+    // A fresh device for this person picks the shared household (2+ members), not the empty one
+    const oops2 = await browserFor(browser);
+    await oops2.page.goto(APP + '#/settings');
+    await oops2.page.getByPlaceholder('https://abcdefgh.supabase.co').fill(SB);
+    await oops2.page.getByPlaceholder(/eyJhbGciOi/).fill(KEY);
+    await oops2.page.getByRole('button', { name: 'Connect' }).click();
+    await oops2.page.getByRole('button', { name: 'I have an account' }).click();
+    await oops2.page.getByLabel('Email').fill('oops@example.com');
+    await oops2.page.getByLabel(/Password/).fill('secret123');
+    await oops2.page.locator('form').getByRole('button', { name: 'Sign in' }).click();
+    await has(oops2.page, 'Invite code — share it with your partner');
+    const code2 = (await oops2.page.locator('.font-mono.text-lg').innerText()).trim();
+    check('new device picks the shared household', code2 === code, code2);
+    duda.errors.push(...oops.errors, ...oops2.errors);
 
     check('no runtime errors', duda.errors.length + pat.errors.length + laptop.errors.length === 0, [...duda.errors, ...pat.errors, ...laptop.errors].join(' | '));
   } catch (e) {

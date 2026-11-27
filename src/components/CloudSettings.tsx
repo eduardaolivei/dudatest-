@@ -12,8 +12,8 @@ export function CloudSettings() {
       {cloud.status === 'off' && <ConnectStep />}
       {cloud.status === 'starting' && !cloud.state.householdId && <p className="text-sm muted">Connecting…</p>}
       {cloud.status === 'signed-out' && <AccountStep />}
-      {cloud.status === 'no-household' && (cloud.pending ? <PendingStep /> : <HouseholdStep />)}
-      {cloud.state.householdId && cloud.email && <Connected />}
+      {cloud.pending ? <PendingStep /> : cloud.status === 'no-household' && <HouseholdStep />}
+      {!cloud.pending && cloud.state.householdId && cloud.email && <Connected />}
       {cloud.config && !cloud.fromBuild && (
         <button className="mt-3 text-xs muted underline" onClick={() => void cloud.disconnect()}>Turn off cloud sync on this device</button>
       )}
@@ -106,19 +106,20 @@ function HouseholdStep() {
       <Steps n={3} />
       <p className="text-sm muted">Signed in as <b>{email}</b>. <button className="underline" onClick={() => void signOut()}>Sign out</button></p>
       {err && <p className="text-sm text-red-600" role="alert">{err}</p>}
-      <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
-        <div className="mb-2 font-medium">First person: create the household</div>
-        <p className="mb-2 text-xs muted">Uploads everything on this device to the cloud. You'll get an invite code for Patrick.</p>
-        <div className="flex gap-2">
-          <input className="input" value={name} onChange={(e) => setName(e.target.value)} aria-label="Household name" />
-          <button className="btn-primary shrink-0" disabled={busy} onClick={() => void run(() => create(name))}>Create</button>
-        </div>
-      </div>
-      <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
-        <div className="mb-2 font-medium">Second person: join with the invite code</div>
+      <div className="rounded-xl border-2 border-brand-500/40 bg-brand-50/60 p-3 dark:bg-brand-600/10">
+        <div className="mb-1 font-medium">Joining your partner? Use their invite code</div>
+        <p className="mb-2 text-xs muted">Ask them to open Settings → Cloud sync on their device and copy the code.</p>
         <div className="flex gap-2">
           <input className="input font-mono uppercase" value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. 4F9A1C2B7D" aria-label="Invite code" />
           <button className="btn-primary shrink-0" disabled={busy || code.trim().length < 6} onClick={() => void run(() => join(code))}>Join</button>
+        </div>
+      </div>
+      <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+        <div className="mb-1 font-medium">First person only: create a new household</div>
+        <p className="mb-2 text-xs muted">Only if nobody has created one yet. Uploads everything on this device and gives you a code for your partner. ⚠️ If your partner already created one, use Join above instead.</p>
+        <div className="flex gap-2">
+          <input className="input" value={name} onChange={(e) => setName(e.target.value)} aria-label="Household name" />
+          <button className="btn-secondary shrink-0" disabled={busy} onClick={() => void run(() => create(name))}>Create</button>
         </div>
       </div>
     </div>
@@ -135,6 +136,40 @@ function PendingStep() {
       <button className="btn-primary w-full" onClick={() => resolvePending('merge')}>Combine both (recommended)</button>
       <button className="btn-secondary w-full" onClick={() => resolvePending('use-household')}>Use only the household's data</button>
       <p className="text-xs muted">Either way, a copy of this device's current data is kept as a safety backup.</p>
+    </div>
+  );
+}
+
+/** Move this account to another household (e.g. you created one by mistake and want your partner's). */
+function SwitchHousehold() {
+  const { join, state } = useCloud();
+  const [open, setOpen] = useState(false);
+  const [code, setCode] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  if (!open) return <button className="text-xs font-medium text-brand-600 underline" onClick={() => setOpen(true)}>Join a different household (your partner's code)</button>;
+  return (
+    <div className="space-y-2 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+      <div className="font-medium">Join a different household</div>
+      <p className="text-xs muted">Use this if you and your partner ended up in two separate households. Enter <b>their</b> invite code (not {state.inviteCode}). You'll choose what to do with this device's data next.</p>
+      {err && <p className="text-sm text-red-600" role="alert">{err}</p>}
+      <div className="flex gap-2">
+        <input className="input font-mono uppercase" value={code} onChange={(e) => setCode(e.target.value)} placeholder="Partner's code" aria-label="Partner invite code" />
+        <button
+          className="btn-primary shrink-0"
+          disabled={busy || code.trim().length < 6}
+          onClick={async () => {
+            if (code.trim().toUpperCase() === state.inviteCode) return setErr('That is the code of the household you are already in.');
+            setBusy(true);
+            const res = await join(code);
+            setBusy(false);
+            if (res) setErr(res);
+          }}
+        >
+          Join
+        </button>
+      </div>
+      <button className="text-xs muted underline" onClick={() => setOpen(false)}>Cancel</button>
     </div>
   );
 }
@@ -183,6 +218,7 @@ function Connected() {
         <button className="btn-secondary text-xs" onClick={cloud.syncNow}><Icon name="repeat" className="h-3.5 w-3.5" />Sync now</button>
         <button className="btn-ghost text-xs" onClick={() => void cloud.signOut()}>Sign out</button>
       </div>
+      <SwitchHousehold />
     </div>
   );
 }

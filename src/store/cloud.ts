@@ -118,11 +118,21 @@ export async function joinHousehold(c: CloudConfig, code: string): Promise<House
   return row as HouseholdRow;
 }
 
-/** Find a household this user already belongs to (e.g. after signing in on a new device). */
+/**
+ * Find the household this user belongs to (e.g. after signing in on a new device).
+ * If they belong to more than one, prefer the shared one (most members), then the most recently used.
+ */
 export async function findMyHousehold(c: CloudConfig): Promise<HouseholdRow | null> {
-  const { data, error } = await getClient(c).from('households').select('id,name,invite_code,data,version').order('updated_at', { ascending: false }).limit(1);
+  const { data, error } = await getClient(c)
+    .from('households')
+    .select('id,name,invite_code,data,version,updated_at,household_members(count)')
+    .order('updated_at', { ascending: false })
+    .limit(10);
   if (error) throw error;
-  return (data?.[0] as HouseholdRow) ?? null;
+  const rows = (data ?? []) as (HouseholdRow & { household_members?: { count: number }[] })[];
+  const members = (r: (typeof rows)[number]) => r.household_members?.[0]?.count ?? 1;
+  rows.sort((a, b) => members(b) - members(a));
+  return rows[0] ?? null;
 }
 
 /** The CloudApi used by the sync engine, backed by Supabase. */
