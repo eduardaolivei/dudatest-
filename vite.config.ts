@@ -4,6 +4,8 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   base: './',
+  // Expose only public env vars: our VITE_* and the NEXT_PUBLIC_* ones the Vercel-Supabase integration sets.
+  envPrefix: ['VITE_', 'NEXT_PUBLIC_'],
   build: {
     chunkSizeWarningLimit: 600,
     rollupOptions: {

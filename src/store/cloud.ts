@@ -41,16 +41,25 @@ function write(key: string, value: unknown) {
   }
 }
 
-/** Config set at build time (e.g. on Vercel) wins; otherwise what was typed in Settings. */
-export function loadConfig(): CloudConfig | null {
+/**
+ * Config set at build time (e.g. Vercel environment variables) wins over what was typed in Settings.
+ * Accepts our VITE_ names and the NEXT_PUBLIC_ names the Vercel ↔ Supabase integration creates.
+ * Only public values are read — the service_role / secret key is never exposed to the app.
+ */
+function buildConfig(): CloudConfig | null {
   const env = import.meta.env as Record<string, string | undefined>;
-  if (env.VITE_SUPABASE_URL && env.VITE_SUPABASE_ANON_KEY) return { url: env.VITE_SUPABASE_URL, anonKey: env.VITE_SUPABASE_ANON_KEY };
-  return read<CloudConfig>(CONFIG_KEY);
+  const url = env.VITE_SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey =
+    env.VITE_SUPABASE_ANON_KEY || env.VITE_SUPABASE_PUBLISHABLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY || env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !anonKey) return null;
+  if (validateConfig(url, anonKey)) return null; // e.g. a secret key by mistake: ignore it
+  return { url: url.trim().replace(/\/$/, ''), anonKey: anonKey.trim() };
 }
-export const configFromBuild = () => {
-  const env = import.meta.env as Record<string, string | undefined>;
-  return !!(env.VITE_SUPABASE_URL && env.VITE_SUPABASE_ANON_KEY);
-};
+
+export function loadConfig(): CloudConfig | null {
+  return buildConfig() ?? read<CloudConfig>(CONFIG_KEY);
+}
+export const configFromBuild = () => buildConfig() !== null;
 export const saveConfig = (c: CloudConfig | null) => write(CONFIG_KEY, c);
 export const loadState = (): CloudState => read<CloudState>(STATE_KEY) ?? {};
 export const saveState = (s: CloudState | null) => write(STATE_KEY, s);
