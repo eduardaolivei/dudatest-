@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useCloud } from '../store/CloudContext';
+import { buildDiagnostics } from '../store/cloud';
 import { Field, Section } from './ui';
 import { Icon } from './Icon';
 
@@ -52,7 +53,23 @@ function ConnectStep() {
       <Field label="anon public key (or publishable key)"><input className="input font-mono text-xs" value={key} onChange={(e) => setKey(e.target.value)} placeholder="eyJhbGciOi… or sb_publishable_…" autoCapitalize="off" autoCorrect="off" spellCheck={false} /></Field>
       <p className="text-xs muted">🔒 Never paste the <b>service_role</b> / secret key here.</p>
       <button className="btn-primary w-full">Connect</button>
+      <BuildCheck />
     </form>
+  );
+}
+
+/** Shows which Supabase variables the hosted build received (names only), to fix auto-connect. */
+function BuildCheck() {
+  const d = buildDiagnostics();
+  return (
+    <details className="rounded-xl bg-slate-50 p-3 text-xs dark:bg-slate-800/60">
+      <summary className="cursor-pointer font-medium">Why do I have to type this? (setup check)</summary>
+      <div className="mt-2 space-y-1 muted">
+        <p>To connect automatically on every phone, the hosting (Vercel) needs the Supabase URL and public key as environment variables, then a Redeploy.</p>
+        <p>This version received: Project URL {d.hasUrl ? '✅' : '❌'} · public key {d.hasKey ? '✅' : '❌'}{d.problem ? ` · ⚠️ ${d.problem}` : ''}</p>
+        <p>Supabase variables seen (names only): {d.names.length ? <code>{d.names.join(', ')}</code> : 'none — add them in Vercel → Settings → Environment Variables, then Redeploy'}</p>
+      </div>
+    </details>
   );
 }
 

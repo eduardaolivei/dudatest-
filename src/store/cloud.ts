@@ -46,14 +46,25 @@ function write(key: string, value: unknown) {
  * Accepts our VITE_ names and the NEXT_PUBLIC_ names the Vercel ↔ Supabase integration creates.
  * Only public values are read — the service_role / secret key is never exposed to the app.
  */
+// Values injected at build time by vite.config.ts (empty when not configured, e.g. in tests).
+const BUILD_URL = typeof __SUPABASE_URL__ === 'string' ? __SUPABASE_URL__ : '';
+const BUILD_KEY = typeof __SUPABASE_KEY__ === 'string' ? __SUPABASE_KEY__ : '';
+export const BUILD_ENV_NAMES: string[] = typeof __SUPABASE_ENV_NAMES__ !== 'undefined' ? __SUPABASE_ENV_NAMES__ : [];
+
 function buildConfig(): CloudConfig | null {
-  const env = import.meta.env as Record<string, string | undefined>;
-  const url = env.VITE_SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey =
-    env.VITE_SUPABASE_ANON_KEY || env.VITE_SUPABASE_PUBLISHABLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY || env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !anonKey) return null;
-  if (validateConfig(url, anonKey)) return null; // e.g. a secret key by mistake: ignore it
-  return { url: url.trim().replace(/\/$/, ''), anonKey: anonKey.trim() };
+  if (!BUILD_URL || !BUILD_KEY) return null;
+  if (validateConfig(BUILD_URL, BUILD_KEY)) return null;
+  return { url: BUILD_URL.replace(/\/$/, ''), anonKey: BUILD_KEY };
+}
+
+/** What the build received, for the setup screen (no secret values). */
+export function buildDiagnostics() {
+  return {
+    hasUrl: !!BUILD_URL,
+    hasKey: !!BUILD_KEY,
+    problem: BUILD_URL && BUILD_KEY ? validateConfig(BUILD_URL, BUILD_KEY) : null,
+    names: BUILD_ENV_NAMES,
+  };
 }
 
 export function loadConfig(): CloudConfig | null {
