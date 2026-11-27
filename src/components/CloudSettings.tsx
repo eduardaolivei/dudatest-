@@ -172,12 +172,12 @@ function Connected() {
         <dt className="muted">Last synced</dt><dd>{cloud.state.lastSyncedAt ? new Date(cloud.state.lastSyncedAt).toLocaleString('en-AU') : '—'}</dd>
       </dl>
       <div className="rounded-xl bg-brand-50 p-3 dark:bg-brand-600/15">
-        <div className="text-xs muted">Invite code for Patrick</div>
+        <div className="text-xs muted">Invite code — share it with your partner</div>
         <div className="flex items-center gap-2">
           <span className="font-mono text-lg font-bold tracking-widest">{cloud.state.inviteCode}</span>
           <button className="btn-secondary px-2 py-1 text-xs" onClick={() => void copy()}><Icon name="copy" className="h-3.5 w-3.5" />{copied ? 'Copied' : 'Copy'}</button>
         </div>
-        <p className="mt-1 text-xs muted">On his phone: Settings → Cloud sync → create his account → Join with this code.</p>
+        <p className="mt-1 text-xs muted">On the other phone: open the app → Settings → Cloud sync → New account (their own email) → Join with this code.</p>
       </div>
       <div className="flex flex-wrap gap-2">
         <button className="btn-secondary text-xs" onClick={cloud.syncNow}><Icon name="repeat" className="h-3.5 w-3.5" />Sync now</button>

@@ -131,7 +131,7 @@ async function setupCloud(page, email, mode) {
 
     await setupCloud(duda.page, 'duda@example.com');
     await duda.page.getByRole('button', { name: 'Create', exact: true }).click();
-    check('household created', await has(duda.page, 'Invite code for Patrick'));
+    check('household created', await has(duda.page, 'Invite code — share it with your partner'));
     const code = (await duda.page.locator('.font-mono.text-lg').innerText()).trim();
     check('invite code shown', /^[0-9A-F]{10}$/.test(code), code);
     check('local data uploaded', households[0]?.data?.accounts?.[0]?.name === 'Joint Everyday');
@@ -141,7 +141,7 @@ async function setupCloud(page, email, mode) {
     await setupCloud(pat.page, 'patrick@example.com');
     await pat.page.getByLabel('Invite code').fill(code.toLowerCase());
     await pat.page.getByRole('button', { name: 'Join' }).click();
-    check('Patrick joined', await has(pat.page, 'Invite code for Patrick'));
+    check('Patrick joined', await has(pat.page, 'Invite code — share it with your partner'));
     await pat.page.goto(APP + '#/accounts');
     check("Patrick sees Duda's account", await has(pat.page, 'Joint Everyday'));
 
@@ -190,7 +190,7 @@ async function setupCloud(page, email, mode) {
     check('wrong password message', await has(laptop.page, 'Email or password is incorrect'));
     await laptop.page.getByLabel(/Password/).fill('secret123');
     await laptop.page.locator('form').getByRole('button', { name: 'Sign in' }).click();
-    check('new device auto-connects to household', await has(laptop.page, 'Invite code for Patrick'));
+    check('new device auto-connects to household', await has(laptop.page, 'Invite code — share it with your partner'));
     await laptop.page.goto(APP + '#/transactions');
     check('new device has all data', await has(laptop.page, 'Fuel by Patrick'));
 
