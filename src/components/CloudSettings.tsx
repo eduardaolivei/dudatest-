@@ -67,6 +67,7 @@ function BuildCheck() {
       <div className="mt-2 space-y-1 muted">
         <p>To connect automatically on every phone, the hosting (Vercel) needs the Supabase URL and public key as environment variables, then a Redeploy.</p>
         <p>This version received: Project URL {d.hasUrl ? '✅' : '❌'} · public key {d.hasKey ? '✅' : '❌'}{d.problem ? ` · ⚠️ ${d.problem}` : ''}</p>
+        {d.hasUrl && <p>Project used: <code>{d.project || '?'}</code>{d.urlFrom ? <> (from <code>{d.urlFrom}</code>)</> : null} — it should match the id in your Supabase dashboard address.</p>}
         <p>Supabase variables seen (names only): {d.names.length ? <code>{d.names.join(', ')}</code> : 'none — add them in Vercel → Settings → Environment Variables, then Redeploy'}</p>
       </div>
     </details>

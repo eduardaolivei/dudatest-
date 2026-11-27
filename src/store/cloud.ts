@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { AppData } from '../domain/types';
 import type { CloudApi } from './sync';
+import { isSupabaseUrl, normalizeSupabaseUrl, projectRef } from '../domain/supabaseUrl';
 
 /**
  * Supabase connection details. The "anon public" key is designed to be used in
@@ -54,7 +55,7 @@ export const BUILD_ENV_NAMES: string[] = typeof __SUPABASE_ENV_NAMES__ !== 'unde
 function buildConfig(): CloudConfig | null {
   if (!BUILD_URL || !BUILD_KEY) return null;
   if (validateConfig(BUILD_URL, BUILD_KEY)) return null;
-  return { url: BUILD_URL.replace(/\/$/, ''), anonKey: BUILD_KEY };
+  return { url: normalizeSupabaseUrl(BUILD_URL), anonKey: BUILD_KEY };
 }
 
 /** What the build received, for the setup screen (no secret values). */
@@ -64,6 +65,8 @@ export function buildDiagnostics() {
     hasKey: !!BUILD_KEY,
     problem: BUILD_URL && BUILD_KEY ? validateConfig(BUILD_URL, BUILD_KEY) : null,
     names: BUILD_ENV_NAMES,
+    project: projectRef(normalizeSupabaseUrl(BUILD_URL)),
+    urlFrom: typeof __SUPABASE_URL_SOURCE__ === 'string' ? __SUPABASE_URL_SOURCE__ : '',
   };
 }
 
@@ -77,8 +80,8 @@ export const saveState = (s: CloudState | null) => write(STATE_KEY, s);
 
 /** Basic checks so a typo is caught before trying to connect. */
 export function validateConfig(url: string, key: string): string | null {
-  const u = url.trim();
-  if (!/^https:\/\/[a-z0-9-]+\.supabase\.(co|in)\/?$/i.test(u)) return 'The Project URL should look like https://abcdefgh.supabase.co';
+  const u = normalizeSupabaseUrl(url);
+  if (!isSupabaseUrl(u)) return 'The Project URL should look like https://abcdefgh.supabase.co';
   const k = key.trim();
   if (k.length < 30) return 'The key looks too short — copy the whole "anon public" key';
   try {

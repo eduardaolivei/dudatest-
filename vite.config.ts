@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import { isSupabaseUrl, normalizeSupabaseUrl } from './src/domain/supabaseUrl';
 
 /**
  * Supabase settings can come from Vercel environment variables under several names
@@ -29,7 +30,10 @@ function isSecret(key: string): boolean {
 
 export default defineConfig(({ mode }) => {
   const env = { ...loadEnv(mode, process.cwd(), ''), ...process.env } as Record<string, string | undefined>;
-  const url = URL_NAMES.map((n) => env[n]).find(Boolean) ?? '';
+  // First URL that is valid once cleaned up (extra slashes, /rest/v1, dashboard links, spaces...).
+  const urlCandidates = URL_NAMES.filter((n) => env[n]).map((n) => ({ name: n, value: normalizeSupabaseUrl(env[n]!) }));
+  const chosen = urlCandidates.find((c) => isSupabaseUrl(c.value)) ?? urlCandidates[0];
+  const url = chosen?.value ?? '';
   const key = KEY_NAMES.map((n) => env[n]).find((v) => v && !isSecret(v)) ?? '';
   // Names only (never values) of Supabase-related variables, to help diagnose setup.
   const seen = Object.keys(env).filter((n) => /SUPABASE/i.test(n)).sort();
@@ -40,6 +44,7 @@ export default defineConfig(({ mode }) => {
       __SUPABASE_URL__: JSON.stringify(url.trim()),
       __SUPABASE_KEY__: JSON.stringify(key.trim()),
       __SUPABASE_ENV_NAMES__: JSON.stringify(seen),
+      __SUPABASE_URL_SOURCE__: JSON.stringify(chosen?.name ?? ''),
     },
     build: {
       chunkSizeWarningLimit: 600,

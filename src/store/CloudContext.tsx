@@ -4,6 +4,7 @@ import { useStore } from './StoreContext';
 import { normalize } from './storage';
 import { mergeData } from './merge';
 import { SyncEngine, type SyncStatus } from './sync';
+import { normalizeSupabaseUrl } from '../domain/supabaseUrl';
 import {
   configFromBuild,
   createHousehold,
@@ -195,7 +196,7 @@ export function CloudProvider({ children }: { children: ReactNode }) {
       connect(url, key) {
         const err = validateConfig(url, key);
         if (err) return err;
-        const c = { url: url.trim().replace(/\/$/, ''), anonKey: key.trim() };
+        const c = { url: normalizeSupabaseUrl(url), anonKey: key.trim() };
         saveConfig(c);
         setConfig(c);
         return null;
