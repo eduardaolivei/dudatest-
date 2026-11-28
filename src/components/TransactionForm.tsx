@@ -35,7 +35,9 @@ export function TransactionForm({ mode: initialMode, initial, onDone, presetCard
 
   const bankAccounts = data.accounts;
   const defaultAccount = bankAccounts.find((a) => a.type !== 'savings')?.id ?? '';
-  const defaultCard = presetCardId ?? data.cards[0]?.id ?? '';
+  // Closed cards are hidden from pickers (but kept when editing something already on them).
+  const cards = data.cards.filter((c) => !c.closed || c.id === initial?.cardId || c.id === presetCardId);
+  const defaultCard = presetCardId ?? cards[0]?.id ?? '';
 
   const [amount, setAmount] = useState(initial ? centsToInput(initial.amount) : '');
   const [description, setDescription] = useState(initial?.description ?? '');
@@ -73,20 +75,20 @@ export function TransactionForm({ mode: initialMode, initial, onDone, presetCard
   const needsAccount = mode === 'income' || mode === 'transfer' || mode === 'payment';
   const needsCard = mode === 'card' || mode === 'payment';
   const missingSetup =
-    (needsAccount && bankAccounts.length === 0) || (needsCard && data.cards.length === 0) || (mode === 'transfer' && bankAccounts.length < 2);
+    (needsAccount && bankAccounts.length === 0) || (needsCard && cards.length === 0) || (mode === 'transfer' && bankAccounts.length < 2);
 
   if (missingSetup) {
     return (
       <div className="space-y-3 text-sm">
         <p className="muted">
-          {needsCard && data.cards.length === 0
+          {needsCard && cards.length === 0
             ? 'Add a credit card first, then you can record purchases and payments on it.'
             : mode === 'transfer'
               ? 'You need at least two accounts to record a transfer.'
               : 'Add a bank account first so we know where the money goes.'}
         </p>
-        <Link className="btn-primary" to={needsCard && data.cards.length === 0 ? '/cards' : '/accounts'} onClick={onDone}>
-          {needsCard && data.cards.length === 0 ? 'Add a card' : 'Add an account'}
+        <Link className="btn-primary" to={needsCard && cards.length === 0 ? '/cards' : '/accounts'} onClick={onDone}>
+          {needsCard && cards.length === 0 ? 'Add a card' : 'Add an account'}
         </Link>
       </div>
     );
@@ -200,15 +202,15 @@ export function TransactionForm({ mode: initialMode, initial, onDone, presetCard
   const sourceSelect = (
     <Field label={mode === 'bill' ? 'Pay from' : 'Paid with'} error={errors.source}>
       <select className="input" value={source} onChange={(e) => setSource(e.target.value)}>
-        {bankAccounts.length === 0 && data.cards.length === 0 && <option value="">— add an account first —</option>}
+        {bankAccounts.length === 0 && cards.length === 0 && <option value="">— add an account first —</option>}
         {bankAccounts.length > 0 && (
           <optgroup label="Bank account / debit card / cash">
             {bankAccounts.map((a) => <option key={a.id} value={`acc:${a.id}`}>{a.name}{a.type === 'cash' ? '' : ' (debit)'}</option>)}
           </optgroup>
         )}
-        {data.cards.length > 0 && (
+        {cards.length > 0 && (
           <optgroup label="Credit card (pay later)">
-            {data.cards.map((c) => <option key={c.id} value={`card:${c.id}`}>{c.name}</option>)}
+            {cards.map((c) => <option key={c.id} value={`card:${c.id}`}>{c.name}</option>)}
           </optgroup>
         )}
       </select>
@@ -307,7 +309,7 @@ export function TransactionForm({ mode: initialMode, initial, onDone, presetCard
         <div className="grid grid-cols-2 gap-3">
           <Field label="Card">
             <select className="input" value={cardId} onChange={(e) => setCardId(e.target.value)}>
-              {data.cards.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {cards.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </Field>
           {mode === 'payment' ? (

@@ -169,7 +169,7 @@ export function RuleForm({ rule, onSave, onDelete }: { rule: RecurringRule; onSa
             setF((x) => ({ ...x, accountId: v.startsWith('acc:') ? v.slice(4) : undefined, cardId: v.startsWith('card:') ? v.slice(5) : undefined }));
           }}>
             {data.accounts.map((a) => <option key={a.id} value={'acc:' + a.id}>{a.name}</option>)}
-            {f.kind === 'expense' && data.cards.map((c) => <option key={c.id} value={'card:' + c.id}>{c.name} (card)</option>)}
+            {f.kind === 'expense' && data.cards.filter((c) => !c.closed || c.id === f.cardId).map((c) => <option key={c.id} value={'card:' + c.id}>{c.name} (card)</option>)}
           </select>
         </Field>
         {f.kind === 'income' ? (

@@ -41,6 +41,7 @@ export interface Card {
   minPaymentFloor: Cents; // e.g. 2500 ($25)
   annualFee: Cents;
   interestRate: number; // purchase APR %
+  closed?: boolean; // cancelled card: hidden from lists, history kept
   demo?: boolean;
 }
 

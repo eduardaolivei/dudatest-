@@ -286,6 +286,22 @@ const money = async (page, label) => (await page.locator('.card', { hasText: lab
     check('new category offered next time', opts.some((o) => o.includes('Brazil trip')));
     await page.keyboard.press('Escape');
 
+    // 12h. Close a credit card (keeps history), reopen, then delete it with its transactions
+    await page.goto(URL + '#/cards');
+    await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
+    await page.getByRole('button', { name: 'Close card (keep history)' }).click();
+    check('closed card hidden from Cards', await has(page, 'Closed cards (1)'));
+    await page.getByRole('button', { name: 'Add transaction' }).click();
+    await page.getByRole('button', { name: 'Card purchase' }).click();
+    check('closed card not offered for new purchases', await has(page, 'Add a credit card first') || (await page.getByText('Add a card').count()) > 0);
+    await page.keyboard.press('Escape');
+    await page.getByText('Closed cards (1)').click();
+    await page.getByRole('button', { name: 'Manage Test Visa' }).click();
+    await page.getByRole('button', { name: /^Delete card \+ \d+ transactions?$/ }).click();
+    await page.getByRole('button', { name: /Tap again: delete card/ }).click();
+    await page.waitForTimeout(300);
+    check('card deleted with its transactions', (await page.getByText('Closed cards').count()) === 0 && (await has(page, 'No cards yet')));
+
     // 13. Every page renders without crashing
     for (const r of ['transactions', 'bills', 'cards', 'goals', 'budgets', 'planner', 'week', 'reports', 'assistant', 'recurring', 'more', 'categories']) {
       await page.goto(URL + '#/' + r);

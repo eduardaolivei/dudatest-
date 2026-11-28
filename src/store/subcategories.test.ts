@@ -59,3 +59,25 @@ describe('wishlist categories', () => {
     expect(mergeData(a, b).settings.wishlistCategories?.sort()).toEqual(['Brazil trip', 'Wedding']);
   });
 });
+
+describe('closing and deleting credit cards', () => {
+  const card = { id: 'v', name: 'Visa', bank: 'B', owner: 'joint' as const, limit: 100000, openingBalance: 0, closingDay: 20, dueDay: 15, minPaymentPercent: 2, minPaymentFloor: 2500, annualFee: 0, interestRate: 20 };
+  it('close keeps history; delete removes card, its transactions and unlinks subscriptions', async () => {
+    const { setCardClosed, deleteCardWithHistory } = await import('./actions');
+    const { spendingTotal } = await import('../domain/finance');
+    let d = emptyData();
+    d.cards = [card];
+    d.transactions.push(newTx({ kind: 'card_purchase', amount: 5000, description: 'x', date: '2026-11-10', category: 'Groceries', person: 'joint', cardId: 'v' }));
+    d.recurring.push({ id: 'r', kind: 'expense', description: 'Netflix', amount: 1899, frequency: 'monthly', startDate: '2026-11-01', category: 'Financial', person: 'joint', cardId: 'v' });
+    const r = { start: '2026-11-01', end: '2026-11-30' };
+    d = setCardClosed(d, 'v', true);
+    expect(d.cards[0].closed).toBe(true);
+    expect(spendingTotal(d, r)).toBe(5000); // history kept
+    d = deleteCardWithHistory(d, 'v');
+    expect(d.cards).toHaveLength(0);
+    expect(d.transactions).toHaveLength(0);
+    expect(spendingTotal(d, r)).toBe(0);
+    expect(d.recurring[0].cardId).toBeUndefined();
+    expect(d.deletedIds).toEqual(expect.arrayContaining(['v']));
+  });
+});

@@ -5,7 +5,7 @@ import type { Card, Person } from '../domain/types';
 import { cardStatement, matchPerson, type CardStatement } from '../domain/finance';
 import { formatDate, today } from '../domain/dates';
 import { centsToInput, formatMoney, parseMoney, sum } from '../domain/money';
-import { remove, upsert } from '../store/actions';
+import { deleteCardWithHistory, remove, setCardClosed, upsert } from '../store/actions';
 import { uid } from '../store/id';
 import { Badge, ConfirmButton, Empty, Field, Modal, Money, PageHeader, Progress, Stat } from '../components/ui';
 import { TransactionForm } from '../components/TransactionForm';
@@ -24,7 +24,9 @@ export default function Cards() {
   const { data, person, update } = useStore();
   const [action, setAction] = useState<Action | null>(null);
   const ref = today();
-  const cards = data.cards.filter((c) => matchPerson(c.owner, person));
+  const mine = data.cards.filter((c) => matchPerson(c.owner, person));
+  const cards = mine.filter((c) => !c.closed);
+  const closedCards = mine.filter((c) => c.closed);
   const stats = useMemo(() => new Map(cards.map((c) => [c.id, cardStatement(c, data.transactions, ref)])), [cards, data.transactions, ref]);
 
   const totalDebt = sum(cards.map((c) => stats.get(c.id)!.balance));
@@ -107,6 +109,23 @@ export default function Cards() {
         </div>
       )}
 
+      {closedCards.length > 0 && (
+        <details className="card">
+          <summary className="cursor-pointer text-sm font-semibold">Closed cards ({closedCards.length})</summary>
+          <ul className="mt-2 divide-y divide-slate-100 dark:divide-slate-800">
+            {closedCards.map((c) => (
+              <li key={c.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+                <span>{c.name} <span className="text-xs muted">· {c.bank}</span></span>
+                <span className="flex items-center gap-2">
+                  <Money cents={cardStatement(c, data.transactions, ref).balance} className="text-xs muted" />
+                  <button className="btn-ghost px-2 py-1 text-xs" onClick={() => setAction({ type: 'edit', card: c })} aria-label={`Manage ${c.name}`}><Icon name="edit" className="h-3.5 w-3.5" />Manage</button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
       <p className="text-xs muted">How it works: purchases count as spending when you buy. Paying the statement moves money from your bank to the card — it lowers both balances and is never counted as spending a second time.</p>
 
       <Modal open={!!action && (action.type === 'purchase' || action.type === 'payment' || action.type === 'charge')} onClose={() => setAction(null)} title={action?.type === 'payment' ? 'Record card payment' : action?.type === 'charge' ? 'Add interest or fee' : 'Add card purchase'}>
@@ -120,8 +139,10 @@ export default function Cards() {
           <CardForm
             initial={action.card}
             onSave={(c) => { update((d) => upsert(d, 'cards', c), 'Card saved'); setAction(null); }}
-            onDelete={action.card ? () => { update((d) => remove(d, 'cards', action.card!.id), 'Card deleted'); setAction(null); } : undefined}
-            inUse={!!action.card && data.transactions.some((t) => t.cardId === action.card!.id)}
+            onDelete={action.card ? () => { update((d) => deleteCardWithHistory(d, action.card!.id), 'Card deleted'); setAction(null); } : undefined}
+            onClose={action.card ? (closed) => { update((d) => setCardClosed(d, action.card!.id, closed), closed ? 'Card closed — history kept' : 'Card reopened'); setAction(null); } : undefined}
+            txCount={action.card ? data.transactions.filter((t) => t.cardId === action.card!.id).length : 0}
+            balance={action.card ? cardStatement(action.card, data.transactions, ref).balance : 0}
           />
         )}
       </Modal>
@@ -173,7 +194,7 @@ function History({ card }: { card: Card }) {
   );
 }
 
-function CardForm({ initial, onSave, onDelete, inUse }: { initial?: Card; onSave: (c: Card) => void; onDelete?: () => void; inUse: boolean }) {
+function CardForm({ initial, onSave, onDelete, onClose, txCount, balance }: { initial?: Card; onSave: (c: Card) => void; onDelete?: () => void; onClose?: (closed: boolean) => void; txCount: number; balance: number }) {
   const { personName } = useStore();
   const [f, setF] = useState({
     name: initial?.name ?? '',
@@ -237,10 +258,38 @@ function CardForm({ initial, onSave, onDelete, inUse }: { initial?: Card; onSave
       </div>
       <p className="text-xs muted">Only credit cards here (they have a limit and a bill). Debit cards are just your bank account — add it under Accounts.</p>
       <p className="text-xs muted">🔒 Never store the card number, CVV or PIN. A nickname is enough.</p>
-      <div className="flex gap-2">
-        <button className="btn-primary flex-1">Save</button>
-        {onDelete && (inUse ? <span className="self-center text-xs muted">Has transactions — delete them first</span> : <ConfirmButton onConfirm={onDelete} />)}
-      </div>
+      <button className="btn-primary w-full">Save</button>
+      {initial && (onClose || onDelete) && (
+        <div className="space-y-3 border-t border-slate-100 pt-3 dark:border-slate-800">
+          {onClose && (
+            <div>
+              <button type="button" className="btn-secondary" onClick={() => onClose(!initial.closed)}>
+                <Icon name={initial.closed ? 'repeat' : 'check'} className="h-4 w-4" />{initial.closed ? 'Reopen card' : 'Close card (keep history)'}
+              </button>
+              {!initial.closed && (
+                <p className="mt-1 text-xs muted">
+                  For a cancelled card: it disappears from Cards and from the lists, but past spending stays in your reports.
+                  {balance > 0 && <> ⚠️ It still owes {formatMoney(balance)}, which keeps counting as debt until paid.</>}
+                </p>
+              )}
+            </div>
+          )}
+          {onDelete && (
+            <div>
+              <ConfirmButton
+                label={txCount ? `Delete card + ${txCount} transaction${txCount === 1 ? '' : 's'}` : 'Delete card'}
+                confirmLabel={txCount ? `Tap again: delete card and ${txCount} transaction${txCount === 1 ? '' : 's'}` : 'Tap again to delete'}
+                onConfirm={onDelete}
+              />
+              <p className="mt-1 text-xs muted">
+                {txCount
+                  ? 'For a card added by mistake: removes the card and every purchase, fee and payment on it from your spending history. Cannot be undone (except from a backup).'
+                  : 'Removes the card.'}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
     </form>
   );
 }

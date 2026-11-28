@@ -220,3 +220,22 @@ export function renameSubcategory(data: AppData, category: string, from: string,
 export const subcategoryUsage = (data: AppData, category: string, name: string) =>
   data.transactions.filter((t) => t.category === category && t.subcategory === name).length +
   data.recurring.filter((r) => r.category === category && r.subcategory === name).length;
+
+// ---------------------------------------------------------------------------
+// Credit cards: close (keep history) or delete with its transactions
+// ---------------------------------------------------------------------------
+export function setCardClosed(data: AppData, cardId: string, closed: boolean): AppData {
+  return { ...data, cards: data.cards.map((c) => (c.id === cardId ? { ...c, closed } : c)) };
+}
+
+/** Delete a card and every purchase/fee/payment on it; subscriptions charged to it are unlinked. */
+export function deleteCardWithHistory(data: AppData, cardId: string): AppData {
+  const txIds = data.transactions.filter((t) => t.cardId === cardId).map((t) => t.id);
+  return {
+    ...data,
+    cards: data.cards.filter((c) => c.id !== cardId),
+    transactions: data.transactions.filter((t) => t.cardId !== cardId),
+    recurring: data.recurring.map((r) => (r.cardId === cardId ? { ...r, cardId: undefined } : r)),
+    deletedIds: tombstone(data, [cardId, ...txIds]),
+  };
+}
