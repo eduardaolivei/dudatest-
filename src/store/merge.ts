@@ -28,6 +28,7 @@ export function mergeData(preferred: AppData, other: AppData): AppData {
     budgets: { ...other.settings.budgets, ...preferred.settings.budgets },
     customSubcategories: custom,
     hiddenSubcategories: hidden,
+    wishlistCategories: [...new Set([...(other.settings.wishlistCategories ?? []), ...(preferred.settings.wishlistCategories ?? [])])],
   };
   return out;
 }

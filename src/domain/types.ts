@@ -129,6 +129,7 @@ export interface Settings {
   budgetCycle?: BudgetCycle;
   customSubcategories?: Record<string, string[]>; // our own subcategories, per category
   hiddenSubcategories?: Record<string, string[]>; // subcategories removed (built-in or ours)
+  wishlistCategories?: string[]; // our own categories for Things We Want to Buy
 }
 
 export interface AppData {

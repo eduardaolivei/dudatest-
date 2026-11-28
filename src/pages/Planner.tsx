@@ -4,7 +4,7 @@ import type { PlannedPurchase, Person } from '../domain/types';
 import { affordability, goalRequiredMonthly, matchPerson, monthRange, safeToSpend } from '../domain/finance';
 import { formatDate, today } from '../domain/dates';
 import { centsToInput, formatMoney, parseMoney, sum } from '../domain/money';
-import { PAYMENT_METHODS, categoryNames, subcategoriesFor } from '../domain/categories';
+import { PAYMENT_METHODS, wishlistCategoriesFor, wishlistEmoji } from '../domain/categories';
 import { remove, upsert } from '../store/actions';
 import { uid } from '../store/id';
 import { Badge, ConfirmButton, Empty, Field, Modal, Money, PageHeader, Progress, Section, Stat } from '../components/ui';
@@ -24,6 +24,11 @@ export default function Planner() {
     .filter((p) => matchPerson(p.person, person))
     .sort((a, b) => (a.status === 'purchased' ? 1 : 0) - (b.status === 'purchased' ? 1 : 0) || PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
   const open = items.filter((p) => p.status !== 'purchased');
+  const [filter, setFilter] = useState<string>('all');
+  const cats = wishlistCategoriesFor(data.settings, data.purchases);
+  const used = cats.filter((c) => items.some((p) => p.category === c));
+  const shown = filter === 'all' ? items : items.filter((p) => p.category === filter);
+  const groups = used.filter((c) => filter === 'all' || c === filter).map((c) => ({ c, list: shown.filter((p) => p.category === c) })).filter((g) => g.list.length);
 
   return (
     <div className="space-y-4">
@@ -42,8 +47,24 @@ export default function Planner() {
       {items.length === 0 ? (
         <div className="card"><Empty icon="bag" title="Nothing planned yet" text="Add things you want to buy — a new phone, a sofa, flights — with a price and deadline." action={<button className="btn-primary" onClick={() => setEditing('new')}>Add item</button>} /></div>
       ) : (
-        <div className="grid gap-3 md:grid-cols-2">
-          {items.map((p) => {
+        <>
+          {used.length > 1 && (
+            <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+              {[{ c: 'all', n: items.length }, ...used.map((c) => ({ c, n: items.filter((p) => p.category === c).length }))].map(({ c, n }) => (
+                <button key={c} onClick={() => setFilter(c)} className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold ${filter === c ? 'bg-brand-600 text-white' : 'bg-white text-slate-700 shadow-sm dark:bg-slate-800 dark:text-slate-200'}`}>
+                  {c === 'all' ? 'All' : `${wishlistEmoji(c)} ${c}`} · {n}
+                </button>
+              ))}
+            </div>
+          )}
+          {groups.map(({ c, list }) => (
+            <section key={c} className="space-y-2">
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                <span aria-hidden>{wishlistEmoji(c)}</span>{c}
+                <span className="font-normal muted">· <Money cents={sum(list.filter((p) => p.status !== 'purchased').map((p) => p.price))} /></span>
+              </h2>
+              <div className="grid gap-3 md:grid-cols-2">
+                {list.map((p) => {
             const need = Math.max(0, p.price - p.saved);
             const monthly = p.deadline ? goalRequiredMonthly({ id: p.id, name: p.name, target: p.price, current: p.saved, monthlyContribution: 0, deadline: p.deadline, person: p.person }, ref) : null;
             const fit = affordability(s2s, need);
@@ -80,15 +101,25 @@ export default function Planner() {
                 </div>
               </div>
             );
-          })}
-        </div>
+                })}
+              </div>
+            </section>
+          ))}
+        </>
       )}
 
       <Modal open={!!editing} onClose={() => setEditing(null)} title={editing === 'new' ? 'Add planned purchase' : 'Edit planned purchase'}>
         {editing && (
           <PurchaseForm
             initial={editing === 'new' ? undefined : editing}
-            onSave={(p) => { update((d) => upsert(d, 'purchases', p), 'Saved'); setEditing(null); }}
+            onSave={(p) => {
+              update((d) => {
+                const known = wishlistCategoriesFor(d.settings, d.purchases);
+                const settings = known.includes(p.category) ? d.settings : { ...d.settings, wishlistCategories: [...(d.settings.wishlistCategories ?? []), p.category] };
+                return upsert({ ...d, settings }, 'purchases', p);
+              }, 'Saved');
+              setEditing(null);
+            }}
             onDelete={editing !== 'new' ? () => { update((d) => remove(d, 'purchases', editing.id), 'Deleted'); setEditing(null); } : undefined}
           />
         )}
@@ -102,7 +133,7 @@ function PurchaseForm({ initial, onSave, onDelete }: { initial?: PlannedPurchase
   const [f, setF] = useState({
     name: initial?.name ?? '', price: initial ? centsToInput(initial.price) : '', saved: initial ? centsToInput(initial.saved) : '0',
     priority: initial?.priority ?? 'medium', person: initial?.person ?? ('joint' as Person), deadline: initial?.deadline ?? '',
-    category: initial?.category ?? 'Household expenses', status: initial?.status ?? 'planned', paymentMethod: initial?.paymentMethod ?? 'Debit card',
+    category: initial?.category ?? 'Just want', status: initial?.status ?? 'planned', paymentMethod: initial?.paymentMethod ?? 'Debit card',
   });
   const [err, setErr] = useState('');
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
@@ -110,12 +141,15 @@ function PurchaseForm({ initial, onSave, onDelete }: { initial?: PlannedPurchase
     e.preventDefault();
     const price = parseMoney(f.price), saved = parseMoney(f.saved || '0');
     if (!f.name.trim()) return setErr('Product name is required');
+    if (newCat !== null && !newCat.trim()) return setErr('Type a name for the new category');
+    const category = newCat?.trim() ? wishCats.find((c) => c.toLowerCase() === newCat.trim().toLowerCase()) ?? newCat.trim() : f.category;
     if (price === null || price <= 0) return setErr('Enter an estimated price');
     if (saved === null || saved < 0) return setErr('Saved amount is invalid');
-    onSave({ id: initial?.id ?? uid(), name: f.name.trim(), price, saved, priority: f.priority as PlannedPurchase['priority'], person: f.person, deadline: f.deadline || undefined, category: f.category, status: f.status as PlannedPurchase['status'], paymentMethod: f.paymentMethod, demo: initial?.demo });
+    onSave({ id: initial?.id ?? uid(), name: f.name.trim(), price, saved, priority: f.priority as PlannedPurchase['priority'], person: f.person, deadline: f.deadline || undefined, category, status: f.status as PlannedPurchase['status'], paymentMethod: f.paymentMethod, demo: initial?.demo });
   }
   const { data } = useStore();
-  const allSubs = [...new Set(categoryNames.flatMap((c) => subcategoriesFor(c, data.settings)))];
+  const wishCats = wishlistCategoriesFor(data.settings, data.purchases);
+  const [newCat, setNewCat] = useState<string | null>(null);
   return (
     <form onSubmit={submit} className="space-y-3" noValidate>
       {err && <p className="text-sm text-red-600">{err}</p>}
@@ -127,9 +161,19 @@ function PurchaseForm({ initial, onSave, onDelete }: { initial?: PlannedPurchase
         <Field label="Status"><select className="input" value={f.status} onChange={set('status')}><option value="planned">Planned</option><option value="saving">Saving</option><option value="purchased">Purchased</option></select></Field>
         <Field label="Responsible"><select className="input" value={f.person} onChange={set('person')}><option value="joint">Joint</option><option value="me">{personName('me')}</option><option value="patrick">{personName('patrick')}</option></select></Field>
         <Field label="Purchase deadline"><input type="date" className="input" value={f.deadline} onChange={set('deadline')} /></Field>
-        <Field label="Category"><select className="input" value={f.category} onChange={set('category')}>{allSubs.map((s) => <option key={s}>{s}</option>)}</select></Field>
+        <Field label="Category">
+          <select className="input" value={newCat !== null ? '__new__' : f.category} onChange={(e) => { if (e.target.value === '__new__') setNewCat(''); else { setNewCat(null); setF((x) => ({ ...x, category: e.target.value })); } }} aria-label="Wish category">
+            {wishCats.map((c) => <option key={c} value={c}>{wishlistEmoji(c)} {c}</option>)}
+            <option value="__new__">+ New category…</option>
+          </select>
+        </Field>
         <Field label="Payment method"><select className="input" value={f.paymentMethod} onChange={set('paymentMethod')}>{PAYMENT_METHODS.map((s) => <option key={s}>{s}</option>)}</select></Field>
       </div>
+      {newCat !== null && (
+        <Field label="New category name">
+          <input autoFocus className="input" value={newCat} onChange={(e) => setNewCat(e.target.value)} placeholder="e.g. Brazil trip, Wedding, Baby" aria-label="New category name" />
+        </Field>
+      )}
       <p className="text-xs muted">Items with a deadline inside the current period are reserved in “How much can we spend?”.</p>
       <div className="flex gap-2"><button className="btn-primary flex-1">Save</button>{onDelete && <ConfirmButton onConfirm={onDelete} />}</div>
     </form>

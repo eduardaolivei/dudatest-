@@ -46,3 +46,16 @@ describe('subcategories', () => {
     expect(subcategoriesFor('Groceries', merged.settings)).not.toContain('Snacks');
   });
 });
+
+describe('wishlist categories', () => {
+  it('offers built-in wish categories plus ours and ones already used', async () => {
+    const { wishlistCategoriesFor } = await import('../domain/categories');
+    const cats = wishlistCategoriesFor({ wishlistCategories: ['Brazil trip'] }, [{ category: 'Household expenses' }]);
+    expect(cats).toEqual(expect.arrayContaining(['Travel', 'Tech', 'Just want', 'Brazil trip', 'Household expenses']));
+  });
+  it('custom wish categories survive syncing', () => {
+    const a = emptyData(); a.settings.wishlistCategories = ['Wedding'];
+    const b = emptyData(); b.settings.wishlistCategories = ['Brazil trip'];
+    expect(mergeData(a, b).settings.wishlistCategories?.sort()).toEqual(['Brazil trip', 'Wedding']);
+  });
+});

@@ -264,6 +264,28 @@ const money = async (page, label) => (await page.locator('.card', { hasText: lab
     await page.goto(URL + '#/transactions');
     check('rename updates past transactions', await has(page, 'Bakery & Cafe'));
 
+    // 12g. Things We Want to Buy: wish categories (built-in + new)
+    await page.goto(URL + '#/planner');
+    await page.getByRole('button', { name: '+ Add item' }).click();
+    await page.getByRole('dialog').getByLabel('Product name').fill('MacBook Air');
+    await page.getByRole('dialog').getByLabel('Estimated price').fill('1899');
+    await page.getByLabel('Wish category').selectOption('Tech');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.getByRole('button', { name: '+ Add item' }).click();
+    await page.getByRole('dialog').getByLabel('Product name').fill('Viagem para o Brasil');
+    await page.getByRole('dialog').getByLabel('Estimated price').fill('6000');
+    await page.getByLabel('Wish category').selectOption('__new__');
+    await page.getByLabel('New category name').fill('Brazil trip');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    check('wish grouped under Tech', await has(page, '💻'));
+    check('new wish category created', await has(page, 'Brazil trip'));
+    await page.getByRole('button', { name: /Brazil trip · 1/ }).click();
+    check('filter by wish category', (await page.getByText('MacBook Air').count()) === 0 && (await has(page, 'Viagem para o Brasil')));
+    await page.getByRole('button', { name: '+ Add item' }).click();
+    const opts = await page.getByLabel('Wish category').locator('option').allInnerTexts();
+    check('new category offered next time', opts.some((o) => o.includes('Brazil trip')));
+    await page.keyboard.press('Escape');
+
     // 13. Every page renders without crashing
     for (const r of ['transactions', 'bills', 'cards', 'goals', 'budgets', 'planner', 'week', 'reports', 'assistant', 'recurring', 'more', 'categories']) {
       await page.goto(URL + '#/' + r);

@@ -79,3 +79,16 @@ export const CATEGORY_THEME: Record<string, CategoryTheme> = {
   Other: theme('📦', 'slate'),
 };
 export const themeFor = (category: string) => CATEGORY_THEME[category] ?? CATEGORY_THEME.Other;
+
+// ---------------------------------------------------------------------------
+// Categories for "Things We Want to Buy" (wishes, not everyday spending)
+// ---------------------------------------------------------------------------
+export const WISHLIST_CATEGORIES = ['Travel', 'Tech', 'Home', 'Car', 'Gifts', 'Experiences', 'Just want'];
+const WISH_EMOJI: Record<string, string> = { Travel: '✈️', Tech: '💻', Home: '🛋️', Car: '🚗', Gifts: '🎁', Experiences: '🎟️', 'Just want': '✨' };
+export const wishlistEmoji = (c: string) => WISH_EMOJI[c] ?? '🏷️';
+
+/** Built-in wish categories + ours + any already used by an item (older items keep theirs). */
+export function wishlistCategoriesFor(settings: { wishlistCategories?: string[] }, purchases: { category: string }[] = []): string[] {
+  const all = [...WISHLIST_CATEGORIES, ...(settings.wishlistCategories ?? []), ...purchases.map((p) => p.category)];
+  return [...new Set(all.filter(Boolean))];
+}
