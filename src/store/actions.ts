@@ -9,6 +9,7 @@ import type {
 } from '../domain/types';
 import { addMonths } from '../domain/dates';
 import { splitCents } from '../domain/money';
+import { budgetKey, isBuiltInSubcategory } from '../domain/categories';
 import { uid } from './id';
 
 // Pure "reducer-style" functions: (data, args) => new data. Never mutate.
@@ -169,3 +170,53 @@ export function tombstone(data: AppData, ids: string[]): string[] {
   for (const id of ids) set.add(id);
   return [...set].slice(-MAX_TOMBSTONES);
 }
+
+// ---------------------------------------------------------------------------
+// Subcategories (per category): add, rename, remove
+// ---------------------------------------------------------------------------
+const withoutItem = (m: Record<string, string[]> | undefined, cat: string, name: string) => ({ ...(m ?? {}), [cat]: (m?.[cat] ?? []).filter((x) => x !== name) });
+const withItem = (m: Record<string, string[]> | undefined, cat: string, name: string) => ({ ...(m ?? {}), [cat]: [...new Set([...(m?.[cat] ?? []), name])] });
+
+export function addSubcategory(data: AppData, category: string, name: string): AppData {
+  const n = name.trim();
+  const s = data.settings;
+  return {
+    ...data,
+    settings: {
+      ...s,
+      customSubcategories: isBuiltInSubcategory(category, n) ? s.customSubcategories : withItem(s.customSubcategories, category, n),
+      hiddenSubcategories: withoutItem(s.hiddenSubcategories, category, n), // adding back a removed one un-hides it
+    },
+  };
+}
+
+/** Remove from the lists. Past transactions keep their label; a budget for it is removed. */
+export function removeSubcategory(data: AppData, category: string, name: string): AppData {
+  const s = data.settings;
+  const budgets = { ...s.budgets };
+  delete budgets[budgetKey(category, name)];
+  return {
+    ...data,
+    settings: {
+      ...s,
+      budgets,
+      customSubcategories: withoutItem(s.customSubcategories, category, name),
+      hiddenSubcategories: withItem(s.hiddenSubcategories, category, name),
+    },
+  };
+}
+
+/** Rename everywhere: lists, transactions, recurring items and the budget for it. */
+export function renameSubcategory(data: AppData, category: string, from: string, to: string): AppData {
+  const n = to.trim();
+  if (!n || n === from) return data;
+  let next = addSubcategory(removeSubcategory(data, category, from), category, n);
+  const oldBudget = data.settings.budgets[budgetKey(category, from)];
+  if (oldBudget) next = { ...next, settings: { ...next.settings, budgets: { ...next.settings.budgets, [budgetKey(category, n)]: oldBudget } } };
+  const fix = <T extends { category: string; subcategory?: string }>(x: T): T => (x.category === category && x.subcategory === from ? { ...x, subcategory: n } : x);
+  return { ...next, transactions: next.transactions.map(fix), recurring: next.recurring.map(fix) };
+}
+
+export const subcategoryUsage = (data: AppData, category: string, name: string) =>
+  data.transactions.filter((t) => t.category === category && t.subcategory === name).length +
+  data.recurring.filter((r) => r.category === category && r.subcategory === name).length;

@@ -19,7 +19,8 @@ export const NAV = [
 export const MORE = [
   { to: '/week', label: 'Our Week', icon: 'week', desc: 'This week & how much we can spend' },
   { to: '/planner', label: 'Things We Want to Buy', icon: 'bag', desc: 'Planned purchases & affordability' },
-  { to: '/budgets', label: 'Budgets', icon: 'wallet', desc: 'Monthly limits per category' },
+  { to: '/budgets', label: 'Budgets', icon: 'wallet', desc: 'Limits per category, aligned to payday' },
+  { to: '/categories', label: 'Categories', icon: 'list', desc: 'Add or rename subcategories' },
   { to: '/recurring', label: 'Income & Recurring', icon: 'repeat', desc: 'Salaries, rent, subscriptions' },
   { to: '/reports', label: 'Reports', icon: 'chart', desc: 'Monthly, FY, CSV & PDF' },
   { to: '/assistant', label: 'Money Assistant', icon: 'chat', desc: 'Ask questions, see alerts' },

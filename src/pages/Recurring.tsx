@@ -188,7 +188,7 @@ export function RuleForm({ rule, onSave, onDelete }: { rule: RecurringRule; onSa
             <Field label="Subcategory">
               <select className="input" value={f.subcategory ?? ''} onChange={(e) => set('subcategory', e.target.value || undefined)}>
                 <option value="">—</option>
-                {subcategoriesFor(f.category, data.settings.customSubcategories).map((s) => <option key={s}>{s}</option>)}
+                {subcategoriesFor(f.category, data.settings).map((s) => <option key={s}>{s}</option>)}
               </select>
             </Field>
           </>

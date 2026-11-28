@@ -239,8 +239,33 @@ const money = async (page, label) => (await page.locator('.card', { hasText: lab
     await page.getByRole('button', { name: afterReload ? 'Switch to day mode' : 'Switch to night mode' }).click();
     check('day/night toggle works and is remembered', after1 === !before2 && afterReload === after1 && (await darkNow()) === before2);
 
+    // 12f. Categories: add a subcategory, use it in an expense, create one from the form, rename
+    await page.goto(URL + '#/categories');
+    await page.getByLabel('New subcategory in Groceries').fill('Bakery');
+    await page.getByRole('button', { name: 'Add subcategory to Groceries' }).click();
+    check('subcategory added in Categories', await has(page, 'Bakery'));
+    await page.getByRole('button', { name: 'Add transaction' }).click();
+    await page.getByLabel('Amount').fill('7.80');
+    await page.getByPlaceholder('e.g. Woolworths').fill('Bread');
+    await page.getByRole('dialog').getByLabel('Subcategory', { exact: true }).selectOption('Bakery');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.getByRole('button', { name: 'Add transaction' }).click();
+    await page.getByLabel('Amount').fill('12');
+    await page.getByPlaceholder('e.g. Woolworths').fill('Dog food');
+    await page.getByRole('dialog').getByLabel('Category', { exact: true }).selectOption('Other');
+    await page.getByRole('dialog').getByLabel('Subcategory', { exact: true }).selectOption('__new_sub__');
+    await page.getByLabel('New subcategory name').fill('Pets');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.goto(URL + '#/categories');
+    check('new subcategory created from the expense form', await has(page, 'Pets'));
+    await page.getByRole('button', { name: 'Edit Bakery in Groceries' }).click();
+    await page.getByLabel('Subcategory name').fill('Bakery & Cafe');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.goto(URL + '#/transactions');
+    check('rename updates past transactions', await has(page, 'Bakery & Cafe'));
+
     // 13. Every page renders without crashing
-    for (const r of ['transactions', 'bills', 'cards', 'goals', 'budgets', 'planner', 'week', 'reports', 'assistant', 'recurring', 'more']) {
+    for (const r of ['transactions', 'bills', 'cards', 'goals', 'budgets', 'planner', 'week', 'reports', 'assistant', 'recurring', 'more', 'categories']) {
       await page.goto(URL + '#/' + r);
       await page.waitForTimeout(150);
       if ((await page.locator('h1').count()) === 0) check(`page ${r} renders`, false);

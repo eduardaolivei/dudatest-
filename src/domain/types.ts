@@ -128,6 +128,7 @@ export interface Settings {
   budgets: Record<string, Cents>; // budget per category group, PER CYCLE (see budgetCycle)
   budgetCycle?: BudgetCycle;
   customSubcategories?: Record<string, string[]>; // our own subcategories, per category
+  hiddenSubcategories?: Record<string, string[]>; // subcategories removed (built-in or ours)
 }
 
 export interface AppData {

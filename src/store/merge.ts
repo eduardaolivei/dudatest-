@@ -21,10 +21,13 @@ export function mergeData(preferred: AppData, other: AppData): AppData {
   }
   const custom: Record<string, string[]> = { ...(other.settings.customSubcategories ?? {}) };
   for (const [k, v] of Object.entries(preferred.settings.customSubcategories ?? {})) custom[k] = [...new Set([...(custom[k] ?? []), ...v])];
+  const hidden: Record<string, string[]> = { ...(other.settings.hiddenSubcategories ?? {}) };
+  for (const [k, v] of Object.entries(preferred.settings.hiddenSubcategories ?? {})) hidden[k] = [...new Set([...(hidden[k] ?? []), ...v])];
   out.settings = {
     ...preferred.settings,
     budgets: { ...other.settings.budgets, ...preferred.settings.budgets },
     customSubcategories: custom,
+    hiddenSubcategories: hidden,
   };
   return out;
 }

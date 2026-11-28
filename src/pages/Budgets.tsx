@@ -7,6 +7,7 @@ import { centsToInput, formatMoney, parseMoney } from '../domain/money';
 import { budgetKey, categoryNames, parseBudgetKey, subcategoriesFor, themeFor, type CategoryTheme } from '../domain/categories';
 import { ConfirmButton, Field, Modal, Money, PageHeader, Progress, Section, Segmented, Stat } from '../components/ui';
 import { Icon } from '../components/Icon';
+import { addSubcategory } from '../store/actions';
 
 const COLLAPSE_KEY = 'our-money-dashboard:budgets-collapsed';
 const CYCLE_LABEL = { weekly: 'week', fortnightly: 'fortnight', monthly: 'month' } as const;
@@ -81,6 +82,7 @@ export default function Budgets() {
         <Stat label="Per day until payday" value={isCurrent && period.daysLeft > 0 ? Math.max(0, Math.floor(status.remaining / period.daysLeft)) : 0} icon="calendar" hint={isCurrent ? `${period.daysLeft} day${period.daysLeft === 1 ? '' : 's'} left` : 'Current cycle only'} />
       </div>
 
+      <p className="text-xs muted">Need a new subcategory? Create it with <b>+ Add budget</b> or manage them all in <a className="font-medium text-brand-600 underline" href="#/categories">Categories</a>.</p>
       <Section
         title="Budgets"
         action={
@@ -166,9 +168,8 @@ export default function Budgets() {
             unit={unit}
             onSave={(category, sub, newSub, cents) => {
               update((d) => {
-                const custom = { ...(d.settings.customSubcategories ?? {}) };
-                if (newSub) custom[category] = [...(custom[category] ?? []), newSub];
-                return { ...d, settings: { ...d.settings, customSubcategories: custom, budgets: { ...d.settings.budgets, [budgetKey(category, sub)]: cents } } };
+                const base = newSub ? addSubcategory(d, category, newSub) : d;
+                return { ...base, settings: { ...base.settings, budgets: { ...base.settings.budgets, [budgetKey(category, sub)]: cents } } };
               }, `${sub ?? category}: ${formatMoney(cents)} per ${unit}`);
               setAdding(false);
             }}
@@ -319,7 +320,7 @@ function AddBudgetForm({ unit, onSave }: { unit: string; onSave: (category: stri
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [err, setErr] = useState('');
-  const subs = subcategoriesFor(category, data.settings.customSubcategories);
+  const subs = subcategoriesFor(category, data.settings);
   const typed = name.trim();
   const existing = subs.find((x) => x.toLowerCase() === typed.toLowerCase());
   const isNew = !!typed && !existing && typed.toLowerCase() !== category.toLowerCase();

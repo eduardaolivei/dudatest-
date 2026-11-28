@@ -6,13 +6,15 @@ import { EXPENSE_CATEGORIES, INCOME_SOURCES, PAYMENT_METHODS, categoryNames, sub
 import { centsToInput, formatMoney, parseMoney } from '../domain/money';
 import { today } from '../domain/dates';
 import { cardStatement } from '../domain/finance';
-import { addInstalments, payCard, settleOccurrence, upsert } from '../store/actions';
+import { addInstalments, addSubcategory, payCard, settleOccurrence, upsert } from '../store/actions';
 import { uid } from '../store/id';
 import { Field, Segmented } from './ui';
 
 const kindToMode: Record<TxKind, QuickAddMode> = {
   income: 'income', expense: 'expense', transfer: 'transfer', card_purchase: 'card', card_charge: 'card', card_payment: 'payment',
 };
+
+const NEW_SUB = '__new_sub__';
 
 export const MODE_TITLES: Record<QuickAddMode, string> = {
   expense: 'Add Expense', income: 'Add Income', bill: 'Add Bill', card: 'Credit Card Purchase', payment: 'Record Card Payment', transfer: 'Transfer Between Accounts',
@@ -38,7 +40,9 @@ export function TransactionForm({ mode: initialMode, initial, onDone, presetCard
   const [amount, setAmount] = useState(initial ? centsToInput(initial.amount) : '');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [category, setCategory] = useState(initial?.category && initial.category in EXPENSE_CATEGORIES ? initial.category : 'Groceries');
-  const [subcategory, setSubcategory] = useState(initial?.subcategory ?? '');
+  const [subcategoryState, setSubcategory] = useState(initial?.subcategory ?? '');
+  const subcategory = subcategoryState;
+  const [newSub, setNewSub] = useState<string | null>(null); // typing a brand-new subcategory
   const [person, setPerson] = useState<Person>(initial?.person ?? 'joint');
   const [date, setDate] = useState(initial?.date ?? today());
   const [dueDate, setDueDate] = useState(initial?.dueDate ?? today());
@@ -99,6 +103,8 @@ export function TransactionForm({ mode: initialMode, initial, onDone, presetCard
       const n = Number(instalments);
       if (!Number.isInteger(n) || n < 1 || n > 48) e.instalments = 'Between 1 and 48';
     }
+    if (newSub !== null && !newSub.trim()) e.newSub = 'Type a name for the new subcategory';
+    if (newSub && newSub.includes('›')) e.newSub = 'Please don’t use the › character';
     if (!date) e.date = 'Pick a date';
     setErrors(e);
     return Object.keys(e).length === 0 ? cents! : null;
@@ -108,6 +114,10 @@ export function TransactionForm({ mode: initialMode, initial, onDone, presetCard
     ev.preventDefault();
     const cents = validate();
     if (cents === null) return;
+    // A brand-new subcategory typed in the form: use it and add it to the list for next time.
+    const typedSub = newSub?.trim();
+    const subcategory = typedSub ? subcats.find((x) => x.toLowerCase() === typedSub.toLowerCase()) ?? typedSub : subcategoryState;
+    if (typedSub && !subcats.includes(subcategory)) update((d) => addSubcategory(d, category, subcategory));
     const id = initial?.id ?? uid();
     const common = { id, amount: cents, person, notes: notes.trim() || undefined, createdAt: initial?.createdAt ?? new Date().toISOString(), recurringId: initial?.recurringId, occurrence: initial?.occurrence, groupId: initial?.groupId, instalment: initial?.instalment, demo: initial?.demo };
 
@@ -186,7 +196,7 @@ export function TransactionForm({ mode: initialMode, initial, onDone, presetCard
     onDone();
   }
 
-  const subcats = subcategoriesFor(category, data.settings.customSubcategories);
+  const subcats = subcategoriesFor(category, data.settings);
   const sourceSelect = (
     <Field label={mode === 'bill' ? 'Pay from' : 'Paid with'} error={errors.source}>
       <select className="input" value={source} onChange={(e) => setSource(e.target.value)}>
@@ -235,18 +245,26 @@ export function TransactionForm({ mode: initialMode, initial, onDone, presetCard
       {(mode === 'expense' || mode === 'bill' || (mode === 'card' && cardKind === 'card_purchase')) && (
         <div className="grid grid-cols-2 gap-3">
           <Field label="Category">
-            <select className="input" value={category} onChange={(e) => { setCategory(e.target.value); setSubcategory(''); }}>
+            <select className="input" value={category} onChange={(e) => { setCategory(e.target.value); setSubcategory(''); setNewSub(null); }} aria-label="Category">
               {categoryNames.map((c) => <option key={c}>{c}</option>)}
             </select>
           </Field>
           <Field label="Subcategory">
-            <select className="input" value={subcategory} onChange={(e) => setSubcategory(e.target.value)}>
+            <select className="input" value={newSub !== null ? NEW_SUB : subcategory} onChange={(e) => { if (e.target.value === NEW_SUB) { setNewSub(''); } else { setNewSub(null); setSubcategory(e.target.value); } }} aria-label="Subcategory">
               <option value="">—</option>
               {subcats.map((s) => <option key={s}>{s}</option>)}
+              {subcategory && !subcats.includes(subcategory) && <option value={subcategory}>{subcategory}</option>}
+              <option value={NEW_SUB}>+ New subcategory…</option>
             </select>
           </Field>
         </div>
       )}
+      {newSub !== null && (mode === 'expense' || mode === 'bill' || (mode === 'card' && cardKind === 'card_purchase')) && (
+        <Field label={`New subcategory in ${category}`} error={errors.newSub}>
+          <input autoFocus className="input" value={newSub} onChange={(e) => setNewSub(e.target.value)} placeholder="e.g. Uber Eats, Gym, Pet food" aria-label="New subcategory name" />
+        </Field>
+      )}
+
       {mode === 'card' && cardKind === 'card_charge' && (
         <Field label="Type">
           <select className="input" value={subcategory || 'Interest'} onChange={(e) => setSubcategory(e.target.value)}>

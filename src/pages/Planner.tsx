@@ -4,7 +4,7 @@ import type { PlannedPurchase, Person } from '../domain/types';
 import { affordability, goalRequiredMonthly, matchPerson, monthRange, safeToSpend } from '../domain/finance';
 import { formatDate, today } from '../domain/dates';
 import { centsToInput, formatMoney, parseMoney, sum } from '../domain/money';
-import { EXPENSE_CATEGORIES, PAYMENT_METHODS } from '../domain/categories';
+import { PAYMENT_METHODS, categoryNames, subcategoriesFor } from '../domain/categories';
 import { remove, upsert } from '../store/actions';
 import { uid } from '../store/id';
 import { Badge, ConfirmButton, Empty, Field, Modal, Money, PageHeader, Progress, Section, Stat } from '../components/ui';
@@ -114,7 +114,8 @@ function PurchaseForm({ initial, onSave, onDelete }: { initial?: PlannedPurchase
     if (saved === null || saved < 0) return setErr('Saved amount is invalid');
     onSave({ id: initial?.id ?? uid(), name: f.name.trim(), price, saved, priority: f.priority as PlannedPurchase['priority'], person: f.person, deadline: f.deadline || undefined, category: f.category, status: f.status as PlannedPurchase['status'], paymentMethod: f.paymentMethod, demo: initial?.demo });
   }
-  const allSubs = Object.values(EXPENSE_CATEGORIES).flat();
+  const { data } = useStore();
+  const allSubs = [...new Set(categoryNames.flatMap((c) => subcategoriesFor(c, data.settings)))];
   return (
     <form onSubmit={submit} className="space-y-3" noValidate>
       {err && <p className="text-sm text-red-600">{err}</p>}

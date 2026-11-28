@@ -23,7 +23,7 @@ import {
 } from './finance';
 import { addDays, addMonths, endOfWeek, formatDate, fyRange, fyStartYear, monthKey, monthLabel, startOfMonth } from './dates';
 import { formatMoney, parseMoney, sum } from './money';
-import { EXPENSE_CATEGORIES } from './categories';
+import { EXPENSE_CATEGORIES, subcategoriesFor } from './categories';
 
 /**
  * Rule-based assistant: recognises the question type, then computes the answer
@@ -72,7 +72,7 @@ export function answer(question: string, data: AppData, ref: ISODate, f: PersonF
   // Spent on <category>?
   if (/spen[dt]|cost|paid for/.test(q) && !/more than|than we earn/.test(q)) {
     const { range, label } = periodFrom(q, ref);
-    const subs = Object.entries(EXPENSE_CATEGORIES).flatMap(([c, s]) => s.map((x) => ({ c, s: x })));
+    const subs = Object.keys(EXPENSE_CATEGORIES).flatMap((c) => subcategoriesFor(c, data.settings).map((x) => ({ c, s: x })));
     const aliases: Record<string, string> = { food: 'Groceries', grocery: 'Groceries', groceries: 'Groceries', petrol: 'Fuel', uber: 'Transportation', transport: 'Transportation', rent: 'Rent', coffee: 'Coffee', restaurant: 'Restaurants', eating: 'Restaurants', brazil: 'Brazil Expenses', uni: 'University Tuition', university: 'Education', subscription: 'Subscriptions' };
     const cat = Object.keys(EXPENSE_CATEGORIES).find((c) => q.includes(c.toLowerCase()));
     const sub = subs.find((x) => q.includes(x.s.toLowerCase()));

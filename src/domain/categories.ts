@@ -33,12 +33,15 @@ export function parseBudgetKey(key: string): { category: string; subcategory?: s
   return i === -1 ? { category: key } : { category: key.slice(0, i), subcategory: key.slice(i + SUB_SEP.length) };
 }
 
-/** Built-in subcategories plus the ones we created ourselves. */
-export function subcategoriesFor(category: string, custom?: Record<string, string[]>): string[] {
+/** Built-in subcategories plus the ones we created, minus the ones we removed. */
+export function subcategoriesFor(category: string, settings?: { customSubcategories?: Record<string, string[]>; hiddenSubcategories?: Record<string, string[]> }): string[] {
   const base = EXPENSE_CATEGORIES[category] ?? [];
-  const extra = (custom?.[category] ?? []).filter((s) => !base.includes(s));
-  return [...base, ...extra];
+  const extra = (settings?.customSubcategories?.[category] ?? []).filter((s) => !base.includes(s));
+  const hidden = new Set(settings?.hiddenSubcategories?.[category] ?? []);
+  return [...base, ...extra].filter((s) => !hidden.has(s));
 }
+
+export const isBuiltInSubcategory = (category: string, sub: string) => (EXPENSE_CATEGORIES[category] ?? []).includes(sub);
 
 /**
  * Soft pastel look per category (Tailwind class names written in full so the
