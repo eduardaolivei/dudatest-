@@ -139,3 +139,52 @@ begin
   end if;
 end;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- Automatic daily backups (keeps the last 30). Safe to run more than once.
+-- Before the first change of each day, the previous state is copied here.
+-- ---------------------------------------------------------------------------
+create table if not exists public.household_snapshots (
+  id bigserial primary key,
+  household_id uuid not null references public.households (id) on delete cascade,
+  data jsonb not null,
+  version bigint not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists household_snapshots_by_household on public.household_snapshots (household_id, created_at desc);
+alter table public.household_snapshots enable row level security;
+
+drop policy if exists "members can read their backups" on public.household_snapshots;
+create policy "members can read their backups" on public.household_snapshots
+  for select to authenticated using (public.is_household_member(household_id));
+grant select on public.household_snapshots to authenticated;
+
+create or replace function public.snapshot_household()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if old.data is distinct from new.data
+     and old.data <> '{}'::jsonb
+     and not exists (
+       select 1 from public.household_snapshots s
+       where s.household_id = old.id and s.created_at > now() - interval '20 hours'
+     ) then
+    insert into public.household_snapshots (household_id, data, version) values (old.id, old.data, old.version);
+    delete from public.household_snapshots
+     where household_id = old.id
+       and id not in (
+         select id from public.household_snapshots
+         where household_id = old.id order by created_at desc limit 30
+       );
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists households_daily_snapshot on public.households;
+create trigger households_daily_snapshot
+  before update of data on public.households
+  for each row execute function public.snapshot_household();

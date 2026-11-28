@@ -37,3 +37,8 @@ Tempo: ~10 minutos. Grátis.
 
 > Para usar no celular, o app precisa estar publicado na internet (ex.: Vercel). No computador, `localhost` funciona.
 > Na Vercel, configure as variáveis `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` para não precisar colar em cada aparelho.
+
+## Backups automáticos (diários, 30 dias)
+O script `supabase/setup.sql` também cria cópias automáticas: uma por dia, guardando os últimos 30 dias.
+No app: **Settings → Cloud sync → Automatic daily backups** para ver e restaurar.
+Se você rodou o script antes dessa função existir, rode o arquivo inteiro de novo (é seguro rodar mais de uma vez).

@@ -15,6 +15,7 @@ const check = (n, c, x = '') => { console.log(`${c ? '✓' : '✗'} ${n}${x ? ' 
 const users = {}; // email -> {id, password}
 const tokens = {}; // token -> userId
 const households = []; // {id,name,invite_code,data,version,members:[]}
+const snapshots = []; // {id, household_id, data, version, created_at}
 function jwt(uid, email) {
   const b = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
   return `${b({ alg: 'HS256', typ: 'JWT' })}.${b({ sub: uid, email, role: 'authenticated', exp: Math.floor(Date.now() / 1000) + 3600 })}.sig`;
@@ -65,8 +66,21 @@ async function handle(route) {
       const h = mine.find((x) => x.id === body.p_id);
       if (!h) return json(400, { code: 'P0001', message: 'Not a member of this household' });
       if (h.version !== body.p_expected_version) return json(200, -1);
+      // like the DB trigger: first change of the day keeps a copy of the previous state
+      if (!snapshots.some((x) => x.household_id === h.id && Date.now() - Date.parse(x.created_at) < 20 * 3600e3)) snapshots.push({ id: snapshots.length + 1, household_id: h.id, data: h.data, version: h.version, created_at: new Date().toISOString() });
       h.data = body.p_data; h.version++; h.updatedAt = Date.now();
       return json(200, h.version);
+    }
+    if (p === '/rest/v1/household_snapshots') {
+      const myIds = mine.map((h) => h.id);
+      let rows = snapshots.filter((x) => myIds.includes(x.household_id));
+      const hid = url.searchParams.get('household_id'); if (hid) rows = rows.filter((x) => x.household_id === hid.replace('eq.', ''));
+      const sid = url.searchParams.get('id'); if (sid) rows = rows.filter((x) => String(x.id) === sid.replace('eq.', ''));
+      rows = [...rows].sort((a, b) => b.created_at.localeCompare(a.created_at));
+      const sel = (url.searchParams.get('select') || '').split(',');
+      const out = rows.map((r) => Object.fromEntries(sel.map((k) => [k, r[k]])));
+      const single = (req.headers()['accept'] || '').includes('vnd.pgrst.object');
+      return single ? json(200, out[0]) : json(200, out);
     }
     if (p === '/rest/v1/households') {
       const idf = url.searchParams.get('id');
@@ -195,6 +209,22 @@ async function setupCloud(page, email, mode) {
     await laptop.page.goto(APP + '#/transactions');
     check('new device has all data', await has(laptop.page, 'Fuel by Patrick'));
 
+    // Automatic daily backups: list and restore an earlier copy; it reaches the other phone
+    await duda.page.goto(APP + '#/settings');
+    await duda.page.getByRole('button', { name: /Automatic daily backups/ }).click();
+    await duda.page.getByRole('button', { name: /Restore backup from/ }).first().waitFor({ timeout: 6000 });
+    check('backup list shows a daily copy', (await duda.page.getByRole('button', { name: /Restore backup from/ }).count()) >= 1);
+    await duda.page.getByRole('button', { name: /Restore backup from/ }).first().click();
+    const [safety] = await Promise.all([duda.page.waitForEvent('download'), duda.page.getByRole('button', { name: 'Yes, restore' }).click()]);
+    check('current data downloaded before restoring', /before-restore/.test(safety.suggestedFilename()), safety.suggestedFilename());
+    await duda.page.waitForTimeout(2500);
+    const restoredTx = (households[0].data.transactions || []).map((t) => t.description);
+    check('restore went to the cloud (later items gone)', !restoredTx.includes('Coffee by Duda'), restoredTx.join(', ') || '(none)');
+    await pat.page.goto(APP + '#/transactions');
+    await pat.page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await pat.page.waitForTimeout(2000);
+    check('other phone gets the restored version', (await pat.page.getByText('Coffee by Duda').count()) === 0);
+
     // Mistake: a person taps Create instead of Join, then fixes it with the partner's code
     const oops = await browserFor(browser);
     await setupCloud(oops.page, 'oops@example.com');
@@ -212,7 +242,8 @@ async function setupCloud(page, email, mode) {
     const nowCode = (await oops.page.locator('.font-mono.text-lg').innerText()).trim();
     check('switched to the shared household', nowCode === code, nowCode);
     await oops.page.goto(APP + '#/transactions');
-    check('sees the shared data after switching', await has(oops.page, 'Fuel by Patrick', 8000));
+    await oops.page.goto(APP + '#/accounts');
+    check('sees the shared data after switching', await has(oops.page, 'Joint Everyday', 8000));
     // A fresh device for this person picks the shared household (2+ members), not the empty one
     const oops2 = await browserFor(browser);
     await oops2.page.goto(APP + '#/settings');

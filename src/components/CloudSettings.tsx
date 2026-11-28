@@ -1,6 +1,10 @@
 import { useState, type FormEvent } from 'react';
 import { useCloud } from '../store/CloudContext';
-import { buildDiagnostics } from '../store/cloud';
+import { buildDiagnostics, friendlyError, getSnapshotData, listSnapshots, type Snapshot } from '../store/cloud';
+import { useStore } from '../store/StoreContext';
+import { normalize } from '../store/storage';
+import { downloadFile } from './exporters';
+import { useEffect } from 'react';
 import { Field, Section } from './ui';
 import { Icon } from './Icon';
 
@@ -158,6 +162,67 @@ function PendingStep() {
   );
 }
 
+/** Daily backups kept automatically in Supabase, with one-tap restore. */
+function AutoBackups() {
+  const { config, state } = useCloud();
+  const { data, replaceAll, notify } = useStore();
+  const [open, setOpen] = useState(false);
+  const [list, setList] = useState<Snapshot[] | null>(null);
+  const [err, setErr] = useState('');
+  const [confirmId, setConfirmId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!open || !config || !state.householdId) return;
+    listSnapshots(config, state.householdId).then(setList).catch((e) => setErr(friendlyError(e)));
+  }, [open, config, state.householdId]);
+
+  async function restore(id: number) {
+    if (!config) return;
+    try {
+      // Safety first: download what we have right now before going back in time.
+      downloadFile(`our-money-before-restore-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(data, null, 2), 'application/json');
+      const snap = normalize(await getSnapshotData(config, id));
+      replaceAll(snap);
+      notify('Restored — this version is now on every device');
+      setConfirmId(null);
+      setOpen(false);
+    } catch (e) {
+      setErr(friendlyError(e));
+    }
+  }
+
+  if (!open) return <button className="block text-xs font-medium text-brand-600 underline" onClick={() => setOpen(true)}>Automatic daily backups (last 30 days)</button>;
+  return (
+    <div className="space-y-2 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+      <div className="font-medium">Automatic daily backups</div>
+      <p className="text-xs muted">Supabase keeps a copy of your data once a day, for 30 days — nothing to do. Restore one if something was deleted by mistake.</p>
+      {err && <p className="text-sm text-red-600" role="alert">{err}</p>}
+      {!err && list === null && <p className="text-xs muted">Loading…</p>}
+      {list && list.length === 0 && <p className="text-xs muted">No backups yet — the first one is made automatically tomorrow after you change something.</p>}
+      {list && list.length > 0 && (
+        <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+          {list.map((s) => (
+            <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+              <span>{new Date(s.created_at).toLocaleString('en-AU', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+              {confirmId === s.id ? (
+                <span className="flex items-center gap-2">
+                  <span className="text-xs text-red-600">Replace everything with this day?</span>
+                  <button className="btn-danger px-2 py-1 text-xs" onClick={() => void restore(s.id)}>Yes, restore</button>
+                  <button className="btn-ghost px-2 py-1 text-xs" onClick={() => setConfirmId(null)}>No</button>
+                </span>
+              ) : (
+                <button className="btn-secondary px-2.5 py-1 text-xs" onClick={() => setConfirmId(s.id)} aria-label={`Restore backup from ${s.created_at}`}>Restore</button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="text-xs muted">Restoring replaces the data on both phones with that day's copy. A file with your current data is downloaded first, just in case.</p>
+      <button className="text-xs muted underline" onClick={() => setOpen(false)}>Close</button>
+    </div>
+  );
+}
+
 /** Move this account to another household (e.g. you created one by mistake and want your partner's). */
 function SwitchHousehold() {
   const { join, state } = useCloud();
@@ -236,6 +301,7 @@ function Connected() {
         <button className="btn-secondary text-xs" onClick={cloud.syncNow}><Icon name="repeat" className="h-3.5 w-3.5" />Sync now</button>
         <button className="btn-ghost text-xs" onClick={() => void cloud.signOut()}>Sign out</button>
       </div>
+      <AutoBackups />
       <SwitchHousehold />
     </div>
   );

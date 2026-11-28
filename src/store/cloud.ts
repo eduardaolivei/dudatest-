@@ -123,6 +123,7 @@ export function friendlyError(e: unknown): string {
   if (/User already registered/i.test(m)) return 'This email already has an account — use Sign in instead.';
   if (/Password should be at least/i.test(m)) return 'Password must be at least 6 characters.';
   if (/Invite code not found/i.test(m)) return 'That invite code was not found. Check it and try again.';
+  if (/household_snapshots/i.test(m)) return 'Automatic backups are not switched on yet. Run the latest setup script (supabase/setup.sql) in Supabase → SQL Editor.';
   if (/function .* does not exist|Could not find the function|relation .* does not exist|schema cache/i.test(m)) return 'The database is not set up yet. Run the setup script in Supabase → SQL Editor.';
   if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return 'Could not reach Supabase. Check the internet connection and the Project URL.';
   if (/Invalid API key|No API key/i.test(m)) return 'The API key is not valid. Copy the “anon public” key again.';
@@ -156,6 +157,30 @@ export async function findMyHousehold(c: CloudConfig): Promise<HouseholdRow | nu
   const members = (r: (typeof rows)[number]) => r.household_members?.[0]?.count ?? 1;
   rows.sort((a, b) => members(b) - members(a));
   return rows[0] ?? null;
+}
+
+export interface Snapshot {
+  id: number;
+  created_at: string;
+  version: number;
+}
+
+/** Automatic daily backups kept by the database (last 30). Throws a friendly error if not set up. */
+export async function listSnapshots(c: CloudConfig, householdId: string): Promise<Snapshot[]> {
+  const { data, error } = await getClient(c)
+    .from('household_snapshots')
+    .select('id,created_at,version')
+    .eq('household_id', householdId)
+    .order('created_at', { ascending: false })
+    .limit(30);
+  if (error) throw error;
+  return (data ?? []) as Snapshot[];
+}
+
+export async function getSnapshotData(c: CloudConfig, id: number): Promise<unknown> {
+  const { data, error } = await getClient(c).from('household_snapshots').select('data').eq('id', id).single();
+  if (error) throw error;
+  return data.data;
 }
 
 /** The CloudApi used by the sync engine, backed by Supabase. */
