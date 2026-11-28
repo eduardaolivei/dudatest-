@@ -116,6 +116,7 @@ export interface CardStatement {
   amountDue: Cents; // statement balance still to pay
   minimumPayment: Cents;
   unbilled: Cents; // purchases since closing (go on the next statement)
+  planRemaining: Cents; // instalment-plan amounts billed after the next statement (still owed, not due yet)
   status: 'paid' | 'due' | 'overdue' | 'no-balance';
 }
 
@@ -149,8 +150,15 @@ export function cardStatement(card: Card, txs: Transaction[], ref: ISODate): Car
           t.cardId === card.id &&
           (t.kind === 'card_purchase' || t.kind === 'card_charge') &&
           t.status === 'paid' &&
-          t.date > lastClosing,
+          t.date > lastClosing &&
+          t.date <= nextClosing,
       )
+      .map((t) => t.amount),
+  );
+  // Future instalments of payment plans: part of the debt (they use the limit) but billed later.
+  const planRemaining = sum(
+    txs
+      .filter((t) => t.cardId === card.id && t.kind === 'card_purchase' && t.status === 'paid' && t.date > nextClosing)
       .map((t) => t.amount),
   );
 
@@ -172,8 +180,47 @@ export function cardStatement(card: Card, txs: Transaction[], ref: ISODate): Car
     amountDue,
     minimumPayment,
     unbilled,
+    planRemaining,
     status,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Instalment / payment plans on a card (e.g. 24 months)
+// ---------------------------------------------------------------------------
+export interface CardPlan {
+  groupId: string;
+  name: string;
+  monthly: Cents;
+  months: number; // total length of the plan
+  billed: number; // instalments already on a statement / in the past (incl. ones paid before using the app)
+  remaining: Cents; // still to be billed after today
+  nextDate: ISODate | null;
+  endDate: ISODate;
+  category: string;
+}
+
+export function cardPlans(card: Card, txs: Transaction[], ref: ISODate): CardPlan[] {
+  const groups = new Map<string, Transaction[]>();
+  for (const t of txs) if (t.cardId === card.id && t.groupId && t.instalment) groups.set(t.groupId, [...(groups.get(t.groupId) ?? []), t]);
+  return [...groups.entries()]
+    .map(([groupId, list]) => {
+      const sorted = [...list].sort((a, b) => a.date.localeCompare(b.date));
+      const future = sorted.filter((t) => t.date > ref);
+      const of = sorted[0].instalment!.of;
+      return {
+        groupId,
+        name: sorted[0].description.replace(/\s*\(\d+\/\d+\)$/, ''),
+        monthly: sorted[sorted.length - 1].amount,
+        months: of,
+        billed: of - future.length,
+        remaining: sum(future.map((t) => t.amount)),
+        nextDate: future[0]?.date ?? null,
+        endDate: sorted[sorted.length - 1].date,
+        category: sorted[0].subcategory ?? sorted[0].category,
+      };
+    })
+    .sort((a, b) => b.remaining - a.remaining);
 }
 
 // ---------------------------------------------------------------------------

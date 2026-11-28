@@ -239,3 +239,58 @@ export function deleteCardWithHistory(data: AppData, cardId: string): AppData {
     deletedIds: tombstone(data, [cardId, ...txIds]),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Payment plans on a credit card (new or already running)
+// ---------------------------------------------------------------------------
+export interface PlanInput {
+  cardId: string;
+  name: string;
+  monthly: Cents;
+  months: number; // total number of instalments, e.g. 24
+  alreadyPaid: number; // instalments paid before adding to the app
+  nextDate: ISODate; // date of the next instalment
+  category: string;
+  subcategory?: string;
+  person: Transaction['person'];
+  alreadyInCardBalance: boolean; // the card's balance in the app already includes what's left of this plan
+}
+
+/**
+ * Creates the remaining instalments as monthly card purchases. Each one counts
+ * as spending in its month and is billed on that month's statement; together
+ * they make up the plan's remaining debt (they use the card limit until paid).
+ */
+export function addPlan(data: AppData, p: PlanInput): AppData {
+  const groupId = uid();
+  const first = p.alreadyPaid + 1;
+  const txs: Transaction[] = [];
+  for (let n = first; n <= p.months; n++) {
+    txs.push(
+      newTx({
+        kind: 'card_purchase',
+        amount: p.monthly,
+        description: `${p.name} (${n}/${p.months})`,
+        date: addMonths(p.nextDate, n - first),
+        category: p.category,
+        subcategory: p.subcategory,
+        person: p.person,
+        cardId: p.cardId,
+        paymentMethod: 'Credit card',
+        groupId,
+        instalment: { n, of: p.months },
+      }),
+    );
+  }
+  const remaining = txs.reduce((a, t) => a + t.amount, 0);
+  const cards = p.alreadyInCardBalance
+    ? data.cards.map((c) => (c.id === p.cardId ? { ...c, openingBalance: Math.max(0, c.openingBalance - remaining) } : c))
+    : data.cards;
+  return { ...data, cards, transactions: [...data.transactions, ...txs] };
+}
+
+/** Remove a plan and all its instalments (e.g. added by mistake). */
+export function deletePlan(data: AppData, groupId: string): AppData {
+  const ids = data.transactions.filter((t) => t.groupId === groupId).map((t) => t.id);
+  return { ...data, transactions: data.transactions.filter((t) => t.groupId !== groupId), deletedIds: tombstone(data, ids) };
+}

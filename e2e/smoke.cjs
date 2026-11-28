@@ -286,6 +286,17 @@ const money = async (page, label) => (await page.locator('.card', { hasText: lab
     check('new category offered next time', opts.some((o) => o.includes('Brazil trip')));
     await page.keyboard.press('Escape');
 
+    // 12g2. Payment plan on a card (24 months, 6 already paid)
+    await page.goto(URL + '#/cards');
+    await page.getByRole('button', { name: '+ Payment plan' }).first().click();
+    await page.getByLabel('Plan name').fill('iPhone 17');
+    await page.getByLabel('Monthly instalment').fill('100');
+    await page.getByLabel('Instalments already paid').fill('6');
+    await page.getByLabel('Already in card balance').selectOption('no');
+    check('plan preview shows what is left', await has(page, '18 instalments of $100.00'));
+    await page.getByRole('button', { name: 'Save plan' }).click();
+    check('plan listed on the card', (await has(page, 'PAYMENT PLANS')) && (await has(page, '6 of 24')) && (await has(page, '$1,800.00')));
+
     // 12h. Close a credit card (keeps history), reopen, then delete it with its transactions
     await page.goto(URL + '#/cards');
     await page.getByRole('button', { name: 'Edit', exact: true }).first().click();

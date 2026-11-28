@@ -2,10 +2,11 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../store/StoreContext';
 import type { Card, Person } from '../domain/types';
-import { cardStatement, matchPerson, type CardStatement } from '../domain/finance';
-import { formatDate, today } from '../domain/dates';
+import { cardBalance, cardPlans, cardStatement, matchPerson, type CardStatement } from '../domain/finance';
+import { addMonths, formatDate, today } from '../domain/dates';
 import { centsToInput, formatMoney, parseMoney, sum } from '../domain/money';
-import { deleteCardWithHistory, remove, setCardClosed, upsert } from '../store/actions';
+import { addPlan, deleteCardWithHistory, deletePlan, remove, setCardClosed, upsert } from '../store/actions';
+import { categoryNames, subcategoriesFor } from '../domain/categories';
 import { uid } from '../store/id';
 import { Badge, ConfirmButton, Empty, Field, Modal, Money, PageHeader, Progress, Stat } from '../components/ui';
 import { TransactionForm } from '../components/TransactionForm';
@@ -18,7 +19,7 @@ const STATUS: Record<CardStatement['status'], { label: string; cls: string }> = 
   'no-balance': { label: 'Nothing due', cls: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300' },
 };
 
-type Action = { type: 'purchase' | 'payment' | 'charge'; card: Card } | { type: 'edit'; card?: Card } | { type: 'history'; card: Card };
+type Action = { type: 'purchase' | 'payment' | 'charge'; card: Card } | { type: 'edit'; card?: Card } | { type: 'history'; card: Card } | { type: 'plan'; card: Card };
 
 export default function Cards() {
   const { data, person, update } = useStore();
@@ -90,6 +91,8 @@ export default function Cards() {
                   <Mini label="3. To pay" value={s.amountDue} sub={s.amountDue ? `Due ${formatDate(s.dueDate)} · min ${formatMoney(s.minimumPayment)}` : 'Nothing due'} strong />
                   <Mini label="4. Paid since statement" value={s.paidSinceClosing} sub="From bank account" />
                 </div>
+                {s.planRemaining > 0 && <p className="text-xs muted">Plus <b><Money cents={s.planRemaining} /></b> of payment-plan instalments billed in later months (already part of the balance).</p>}
+                <PlansList card={c} />
                 {s.amountDue > s.minimumPayment && c.interestRate > 0 && (
                   <p className="rounded-xl bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
                     Paying only the minimum could cost about {formatMoney(estInterest)} in interest next month. Pay the full {formatMoney(s.amountDue)} to avoid it.
@@ -99,6 +102,7 @@ export default function Cards() {
                 <div className="flex flex-wrap gap-2">
                   <button className="btn-primary text-xs" onClick={() => setAction({ type: 'payment', card: c })}><Icon name="check" className="h-4 w-4" />Pay</button>
                   <button className="btn-secondary text-xs" onClick={() => setAction({ type: 'purchase', card: c })}>+ Purchase</button>
+                  <button className="btn-secondary text-xs" onClick={() => setAction({ type: 'plan', card: c })}>+ Payment plan</button>
                   <button className="btn-secondary text-xs" onClick={() => setAction({ type: 'charge', card: c })}>+ Interest/fee</button>
                   <button className="btn-ghost text-xs" onClick={() => setAction({ type: 'history', card: c })}>History</button>
                   <button className="btn-ghost text-xs" onClick={() => setAction({ type: 'edit', card: c })}><Icon name="edit" className="h-4 w-4" />Edit</button>
@@ -147,10 +151,132 @@ export default function Cards() {
         )}
       </Modal>
 
+      <Modal open={action?.type === 'plan'} onClose={() => setAction(null)} title={action?.type === 'plan' ? `Payment plan on ${action.card.name}` : ''}>
+        {action?.type === 'plan' && <PlanForm card={action.card} onDone={() => setAction(null)} />}
+      </Modal>
+
       <Modal open={action?.type === 'history'} onClose={() => setAction(null)} title={action?.type === 'history' ? `${action.card.name} history` : ''} wide>
         {action?.type === 'history' && <History card={action.card} />}
       </Modal>
     </div>
+  );
+}
+
+/** The next date (from tomorrow) that falls on this day of the month. */
+function nextOnDay(day: number): string {
+  const t = today();
+  const thisMonth = addMonths(t, 0, day);
+  return thisMonth > t ? thisMonth : addMonths(t, 1, day);
+}
+
+/** Payment plans on this card: progress, monthly amount, what's left. */
+function PlansList({ card }: { card: Card }) {
+  const { data, update } = useStore();
+  const plans = cardPlans(card, data.transactions, today());
+  if (!plans.length) return null;
+  return (
+    <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+      <div className="mb-2 text-xs font-semibold muted">PAYMENT PLANS</div>
+      <ul className="space-y-3">
+        {plans.map((p) => (
+          <li key={p.groupId} className="text-sm">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="truncate font-medium">{p.name}</div>
+                <div className="text-xs muted">
+                  {formatMoney(p.monthly)}/month · {p.billed} of {p.months} {p.remaining ? <>· next {formatDate(p.nextDate ?? undefined)}</> : '· finished 🎉'} · ends {formatDate(p.endDate)}
+                </div>
+              </div>
+              <div className="text-right">
+                <Money cents={p.remaining} className="font-semibold" />
+                <div className="text-[11px] muted">left to pay</div>
+              </div>
+            </div>
+            <div className="mt-1.5"><Progress value={p.billed / p.months} tone="good" /></div>
+            <div className="mt-1 text-right">
+              <ConfirmButton label="Delete plan" confirmLabel="Tap again to delete plan" className="btn-ghost px-2 py-1 text-xs text-red-600" onConfirm={() => update((d) => deletePlan(d, p.groupId), 'Plan deleted')} />
+            </div>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 text-xs muted">The amount left counts as card debt (it uses your limit); only one instalment goes on each statement.</p>
+    </div>
+  );
+}
+
+function PlanForm({ card, onDone }: { card: Card; onDone: () => void }) {
+  const { data, update, personName } = useStore();
+  const [f, setF] = useState({
+    name: '', monthly: '', months: '24', paid: '0', nextDate: nextOnDay(card.dueDay), category: 'Personal', subcategory: '', person: card.owner as Person, inBalance: 'yes',
+  });
+  const [err, setErr] = useState('');
+  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
+  const monthly = parseMoney(f.monthly);
+  const months = Number(f.months);
+  const paid = Number(f.paid);
+  const left = monthly && months > paid ? monthly * (months - paid) : 0;
+  const isNew = paid === 0;
+
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!f.name.trim()) return setErr('What is the plan for? e.g. iPhone 17');
+    if (monthly === null || monthly <= 0) return setErr('Enter the monthly instalment, e.g. 85.50');
+    if (!Number.isInteger(months) || months < 2 || months > 120) return setErr('Number of months must be between 2 and 120');
+    if (!Number.isInteger(paid) || paid < 0 || paid >= months) return setErr(`Instalments already paid must be between 0 and ${months - 1}`);
+    if (!f.nextDate) return setErr('Pick the date of the next instalment');
+    update(
+      (d) => addPlan(d, {
+        cardId: card.id, name: f.name.trim(), monthly, months, alreadyPaid: paid, nextDate: f.nextDate,
+        category: f.category, subcategory: f.subcategory || undefined, person: f.person,
+        alreadyInCardBalance: !isNew && f.inBalance === 'yes',
+      }),
+      `Plan added: ${months - paid} instalments of ${formatMoney(monthly)}`,
+    );
+    onDone();
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-3" noValidate>
+      {err && <p className="text-sm text-red-600" role="alert">{err}</p>}
+      <Field label="What is it for?"><input autoFocus className="input" value={f.name} onChange={set('name')} placeholder="e.g. iPhone 17, Sofa, Flights" aria-label="Plan name" /></Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Monthly instalment"><input className="input" inputMode="decimal" value={f.monthly} onChange={set('monthly')} placeholder="0.00" aria-label="Monthly instalment" /></Field>
+        <Field label="Total months"><input className="input" inputMode="numeric" value={f.months} onChange={set('months')} aria-label="Total months" /></Field>
+        <Field label="Already paid (instalments)"><input className="input" inputMode="numeric" value={f.paid} onChange={set('paid')} aria-label="Instalments already paid" /></Field>
+        <Field label="Next instalment date"><input type="date" className="input" value={f.nextDate} onChange={set('nextDate')} aria-label="Next instalment date" /></Field>
+        <Field label="Category">
+          <select className="input" value={f.category} onChange={(e) => setF((x) => ({ ...x, category: e.target.value, subcategory: '' }))} aria-label="Plan category">
+            {categoryNames.map((c) => <option key={c}>{c}</option>)}
+          </select>
+        </Field>
+        <Field label="Subcategory">
+          <select className="input" value={f.subcategory} onChange={set('subcategory')} aria-label="Plan subcategory">
+            <option value="">—</option>
+            {subcategoriesFor(f.category, data.settings).map((x) => <option key={x}>{x}</option>)}
+          </select>
+        </Field>
+        <Field label="Person">
+          <select className="input" value={f.person} onChange={set('person')}>
+            <option value="me">{personName('me')}</option><option value="patrick">{personName('patrick')}</option><option value="joint">Joint</option>
+          </select>
+        </Field>
+      </div>
+      {!isNew && (
+        <Field label={`Is what's left of this plan already included in the card balance you entered (${formatMoney(cardBalance(card, data.transactions))})?`}>
+          <select className="input" value={f.inBalance} onChange={set('inBalance')} aria-label="Already in card balance">
+            <option value="yes">Yes — it's part of the balance I typed (don't add it twice)</option>
+            <option value="no">No — add it to the card's debt</option>
+          </select>
+        </Field>
+      )}
+      {left > 0 && (
+        <p className="rounded-xl bg-brand-50 p-3 text-sm text-brand-700 dark:bg-brand-600/15 dark:text-brand-100">
+          {months - paid} instalments of {formatMoney(monthly!)} → <b>{formatMoney(left)}</b> left to pay, finishing around {formatDate(addMonths(f.nextDate || today(), months - paid - 1))}.
+          Each instalment counts as spending in its own month.
+        </p>
+      )}
+      <button className="btn-primary w-full py-3">Save plan</button>
+    </form>
   );
 }
 
